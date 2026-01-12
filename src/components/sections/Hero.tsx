@@ -20,36 +20,16 @@ export default function Hero() {
         style={{ opacity }}
       />
 
-      {/* Parallax floating elements - Bridge only */}
-      <motion.div style={{ y: parallaxY }} className="relative z-10 text-center flex flex-col items-center justify-center h-full">
-        {/* Bridge symbol - Central element */}
+      {/* Parallax floating elements - Bridge only, centered */}
+      <motion.div style={{ y: parallaxY }} className="relative z-10 w-full h-full flex items-center justify-center">
+        {/* Bridge symbol - Central element, larger */}
         <motion.div
-          className="scale-[1.5]"
+          className="scale-[3]"
           initial={{ opacity: 0, scale: 0.3 }}
-          animate={{ opacity: 1, scale: 1.5 }}
+          animate={{ opacity: 1, scale: 3 }}
           transition={{ delay: 0.3, duration: 1.2, ease: 'easeOut' }}
         >
           <BridgeLogo />
-        </motion.div>
-
-        {/* Scroll indicator */}
-        <motion.div
-          className="mt-32"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1.5 }}
-        >
-          <motion.div
-            className="w-8 h-12 border-2 border-gray-600 rounded-full mx-auto flex justify-center pt-2"
-            animate={{ y: [0, 8, 0] }}
-            transition={{
-              duration: 1.5,
-              repeat: Infinity,
-              ease: 'easeInOut',
-            }}
-          >
-            <motion.div className="w-1.5 h-1.5 bg-[var(--color-accent-cyan)] rounded-full" />
-          </motion.div>
         </motion.div>
       </motion.div>
 

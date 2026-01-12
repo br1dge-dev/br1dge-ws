@@ -1,4 +1,4 @@
-import { motion, useMotionValue, useSpring, useTransform, AnimatePresence } from 'framer-motion';
+import { motion, useMotionValue, useSpring, AnimatePresence } from 'framer-motion';
 import { useRef, useEffect, useState } from 'react';
 
 interface Particle {
@@ -19,15 +19,42 @@ interface Ripple {
 
 export default function MouseTracker() {
   const containerRef = useRef<HTMLDivElement>(null);
+  const bridgeRef = useRef<HTMLDivElement>(null);
 
   const [particles, setParticles] = useState<Particle[]>([]);
   const [ripples, setRipples] = useState<Ripple[]>([]);
+  const [bridgeHovered, setBridgeHovered] = useState(false);
+
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
 
   const springConfig = { damping: 25, stiffness: 700 };
   const cursorX = useSpring(mouseX, springConfig);
   const cursorY = useSpring(mouseY, springConfig);
+
+  // Cursor collision with bridge
+  useEffect(() => {
+    const bridgeElement = bridgeRef.current;
+    if (!bridgeElement) return;
+
+    const checkCollision = () => {
+      const bridgeRect = bridgeElement.getBoundingClientRect();
+      const cx = mouseX.get();
+      const cy = mouseY.get();
+
+      const isNear = (
+        cx >= bridgeRect.left &&
+        cx <= bridgeRect.right &&
+        cy >= bridgeRect.top &&
+        cy <= bridgeRect.bottom
+      );
+
+      setBridgeHovered(isNear);
+    };
+
+    const interval = setInterval(checkCollision, 50);
+    return () => clearInterval(interval);
+  }, [mouseX, mouseY]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -105,48 +132,63 @@ export default function MouseTracker() {
   }, [ripples.length]);
 
   return (
-    <div
-      ref={containerRef}
-      className="fixed inset-0 pointer-events-none z-50"
-      style={{ cursor: 'none' }}
-    >
-      {/* Simple dot cursor (no ring) */}
-      <motion.div
-        className="fixed top-0 left-0 w-1 h-1 rounded-full bg-[var(--color-accent-cyan)] -translate-x-1/2 -translate-y-1/2 mix-blend-difference"
-        style={{ x: cursorX, y: cursorY }}
-      />
+    <>
+      {/* Bridge element for collision detection */}
+      <div ref={bridgeRef} className="fixed inset-0 pointer-events-none" />
 
-      {/* Click ripples */}
-      <AnimatePresence>
-        {ripples.map((ripple) => (
+      <div
+        ref={containerRef}
+        className="fixed inset-0 pointer-events-none z-50"
+        style={{ cursor: 'none' }}
+      >
+        {/* Simple dot cursor */}
+        <motion.div
+          className="fixed top-0 left-0 w-1 h-1 rounded-full -translate-x-1/2 -translate-y-1/2 mix-blend-difference"
+          style={{
+            x: cursorX,
+            y: cursorY,
+            backgroundColor: bridgeHovered
+              ? 'var(--color-accent-magenta)'
+              : 'var(--color-accent-cyan)',
+          }}
+          animate={{
+            scale: bridgeHovered ? 2 : 1,
+          }}
+          transition={{ duration: 0.2 }}
+        />
+
+        {/* Click ripples */}
+        <AnimatePresence>
+          {ripples.map((ripple) => (
+            <motion.div
+              key={ripple.id}
+              className="fixed top-0 left-0 rounded-full border-2 border-[var(--color-accent-magenta)] -translate-x-1/2 -translate-y-1/2 mix-blend-screen"
+              style={{ x: ripple.x, y: ripple.y }}
+              initial={{ scale: 0, opacity: 1 }}
+              animate={{
+                scale: 3,
+                opacity: 0,
+              }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.5 }}
+            />
+          ))}
+        </AnimatePresence>
+
+        {/* Particles */}
+        {particles.map((particle) => (
           <motion.div
-            key={ripple.id}
-            className="fixed top-0 left-0 rounded-full border-2 border-[var(--color-accent-magenta)] -translate-x-1/2 -translate-y-1/2 mix-blend-screen"
-            style={{ x: ripple.x, y: ripple.y }}
-            initial={{ scale: 0, opacity: 1 }}
-            animate={{
-              scale: 3,
-              opacity: 0,
+            key={particle.id}
+            className="fixed w-1 h-1 rounded-full bg-[var(--color-accent-magenta)] -translate-x-1/2 -translate-y-1/2"
+            style={{
+              x: particle.x,
+              y: particle.y,
+              opacity: particle.life,
+              mixBlendMode: 'screen',
             }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.5 }}
           />
         ))}
-      </AnimatePresence>
-
-      {/* Particles */}
-      {particles.map((particle) => (
-        <motion.div
-          key={particle.id}
-          className="fixed w-1 h-1 rounded-full bg-[var(--color-accent-magenta)] -translate-x-1/2 -translate-y-1/2"
-          style={{
-            x: particle.x,
-            y: particle.y,
-            opacity: particle.life,
-            mixBlendMode: 'screen',
-          }}
-        />
-      ))}
-    </div>
+      </div>
+    </>
   );
 }
