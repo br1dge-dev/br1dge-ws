@@ -1,80 +1,74 @@
 ---
 ---
 
-<section id="hero" className="relative h-screen w-full flex items-center justify-center bg-black">
-  <canvas id="bridgeCanvas" className="absolute inset-0" />
-</section>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>br1dge.xyz</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { 
+        background: #000; 
+        overflow: hidden; 
+      }
+      canvas { 
+        display: block; 
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="c"></canvas>
 
-<script>
-  const canvas = document.getElementById('bridgeCanvas');
-  const ctx = canvas.getContext('2d');
+    <script>
+      const c = document.getElementById('c');
+      const ctx = c.getContext('2d');
 
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
+      const size = 60; // Grid size
+      let width, height;
 
-  let mouseX = window.innerWidth / 2;
-  let mouseY = window.innerHeight / 2;
-  let bridgeX = window.innerWidth / 2;
-  let bridgeY = window.innerHeight / 2;
+      function resize() {
+        width = c.width = window.innerWidth;
+        height = c.height = window.innerHeight;
+        draw();
+      }
 
-  window.addEventListener('mousemove', (e) => {
-    mouseX = e.clientX;
-    mouseY = e.clientY;
-  });
+      function draw() {
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, width, height);
 
-  window.addEventListener('resize', () => {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    bridgeX = canvas.width / 2;
-    bridgeY = canvas.height / 2;
-  });
+        // Grid - clearly visible
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 2;
 
-  function draw() {
-    ctx.fillStyle = '#000000';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+        for (let x = 0; x <= width; x += size) {
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, height);
+          ctx.stroke();
+        }
+        for (let y = 0; y <= height; y += size) {
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(width, y);
+          ctx.stroke();
+        }
 
-    // Draw grid background
-    ctx.strokeStyle = 'rgba(51, 51, 51, 0.5)';
-    ctx.lineWidth = 1;
-    for (let x = 0; x < canvas.width; x += 60) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, canvas.height);
-      ctx.stroke();
-    }
-    for (let y = 0; y < canvas.height; y += 60) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(canvas.width, y);
-      ctx.stroke();
-    }
+        // Center of a grid cell
+        const gridX = Math.floor(width / size / 2) * size + size / 2;
+        const gridY = Math.floor(height / size / 2) * size + size / 2;
 
-    // Draw cursor effect
-    ctx.beginPath();
-    ctx.arc(mouseX, mouseY, 10, 0, Math.PI * 2);
-    ctx.fillStyle = '#00FFFF';
-    ctx.fill();
+        // Bridge - 200px, aligned to grid
+        ctx.fillStyle = '#E5E5E5';
+        ctx.font = 'bold 200px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('͆', gridX, gridY);
+      }
 
-    // Draw bridge
-    ctx.font = 'bold 100px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#E5E5E5';
-
-    const dx = mouseX - bridgeX;
-    const dy = mouseY - bridgeY;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    const maxDistance = 300;
-    const scale = Math.min(1 + (1 - Math.min(distance, maxDistance) / maxDistance) * 0.5, 1.5);
-    const offsetX = dx * 0.1;
-    const offsetY = dy * 0.1;
-
-    ctx.setTransform(scale, 0, 0, scale, 0, 0);
-    ctx.fillText('͆', bridgeX + offsetX / scale, bridgeY + offsetY / scale);
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-
-    requestAnimationFrame(draw);
-  }
-
-  draw();
-</script>
+      window.addEventListener('resize', resize);
+      resize();
+    </script>
+  </body>
+</html>
