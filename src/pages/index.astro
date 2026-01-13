@@ -3,7 +3,33 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>br1dge.xyz</title>
+    
+    <!-- Basic Meta -->
+    <title>br1dge ∩ Interactive Experience</title>
+    <meta name="description" content="An interactive visual experience. Collect energy, catch particles, unlock the bridge." />
+    <meta name="author" content="br1dge" />
+    <meta name="theme-color" content="#000000" />
+    
+    <!-- Favicon - using ∩ symbol -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='white'>∩</text></svg>" />
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='black' width='100' height='100'/><text y='.9em' font-size='90' fill='white' text-anchor='middle' x='50'>∩</text></svg>" />
+    
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://br1dge.xyz/" />
+    <meta property="og:title" content="br1dge ∩" />
+    <meta property="og:description" content="An interactive visual experience. Collect energy, catch particles, unlock the bridge." />
+    <meta property="og:image" content="https://br1dge.xyz/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@br1dge_eth" />
+    <meta name="twitter:title" content="br1dge ∩" />
+    <meta name="twitter:description" content="An interactive visual experience. Collect energy, catch particles, unlock the bridge." />
+    <meta name="twitter:image" content="https://br1dge.xyz/og-image.png" />
+    
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; cursor: none; }
       html, body { height: 100%; width: 100%; overflow: hidden; background: #000; }
@@ -14,20 +40,26 @@
         right: 1.2rem;
         z-index: 100;
         background: transparent;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        color: rgba(255, 255, 255, 0.5);
-        font-size: 1rem;
-        padding: 0.5rem 0.7rem;
+        border: none;
+        padding: 0.5rem;
         cursor: none;
         transition: all 0.3s ease;
-        font-family: system-ui, sans-serif;
+        opacity: 0.5;
       }
       #sound-toggle:hover {
-        border-color: rgba(255, 255, 255, 0.5);
-        color: #fff;
+        opacity: 1;
       }
       #sound-toggle.muted {
-        opacity: 0.4;
+        opacity: 0.3;
+      }
+      #sound-toggle svg {
+        width: 28px;
+        height: 28px;
+        fill: none;
+        stroke: #fff;
+        stroke-width: 1.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
       }
       #sound-hint {
         position: fixed;
@@ -54,8 +86,18 @@
         opacity: 0.9;
       }
       #sound-hint .speaker {
-        margin-left: 0.5em;
-        font-size: 1.1em;
+        margin-left: 0.6em;
+        display: flex;
+        align-items: center;
+      }
+      #sound-hint .speaker svg {
+        width: 22px;
+        height: 22px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
       }
       #sound-hint span {
         display: inline-block;
@@ -74,9 +116,20 @@
   </head>
   <body>
     <canvas id="canvas"></canvas>
-    <button id="sound-toggle" aria-label="Toggle sound">🔊</button>
+    <button id="sound-toggle" aria-label="Toggle sound">
+      <svg viewBox="0 0 24 24" class="sound-on">
+        <path d="M11 5L6 9H2v6h4l5 4V5z"/>
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+      </svg>
+      <svg viewBox="0 0 24 24" class="sound-off" style="display:none;">
+        <path d="M11 5L6 9H2v6h4l5 4V5z"/>
+        <line x1="23" y1="9" x2="17" y2="15"/>
+        <line x1="17" y1="9" x2="23" y2="15"/>
+      </svg>
+    </button>
     <div id="sound-hint">
-      <span>P</span><span>L</span><span>E</span><span>A</span><span>S</span><span>E</span><span>&nbsp;</span><span>E</span><span>N</span><span>A</span><span>B</span><span>L</span><span>E</span><span>&nbsp;</span><span>S</span><span>O</span><span>U</span><span>N</span><span>D</span><span class="speaker">🔊</span>
+      <span>P</span><span>L</span><span>E</span><span>A</span><span>S</span><span>E</span><span>&nbsp;</span><span>E</span><span>N</span><span>A</span><span>B</span><span>L</span><span>E</span><span>&nbsp;</span><span>S</span><span>O</span><span>U</span><span>N</span><span>D</span><span class="speaker"><svg viewBox="0 0 24 24"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg></span>
     </div>
     <script>
       const canvas = document.getElementById('canvas');
@@ -1566,17 +1619,26 @@
         soundHint?.classList.add('hidden');
       }
       
+      // Sound Toggle Button
+      const soundToggleBtn = document.getElementById('sound-toggle');
+      const soundOnIcon = soundToggleBtn?.querySelector('.sound-on');
+      const soundOffIcon = soundToggleBtn?.querySelector('.sound-off');
+      
+      function updateSoundIcons(muted) {
+        if (soundOnIcon && soundOffIcon) {
+          soundOnIcon.style.display = muted ? 'none' : 'block';
+          soundOffIcon.style.display = muted ? 'block' : 'none';
+        }
+        soundToggleBtn?.classList.toggle('muted', muted);
+      }
+      
       function enableSound() {
         initAudioOnInteraction();
         if (AudioSystem.muted) {
           AudioSystem.toggleMute();
         }
         hideSoundHint();
-        // Update toggle button state
-        if (soundToggleBtn) {
-          soundToggleBtn.textContent = '🔊';
-          soundToggleBtn.classList.remove('muted');
-        }
+        updateSoundIcons(false);
       }
       
       // Sound Hint click handler - enables sound
@@ -1585,14 +1647,11 @@
         enableSound();
       });
       
-      // Sound Toggle Button
-      const soundToggleBtn = document.getElementById('sound-toggle');
       soundToggleBtn?.addEventListener('click', (e) => {
         e.stopPropagation();
         initAudioOnInteraction();
         const muted = AudioSystem.toggleMute();
-        soundToggleBtn.textContent = muted ? '🔇' : '🔊';
-        soundToggleBtn.classList.toggle('muted', muted);
+        updateSoundIcons(muted);
         
         // Hide hint when sound is enabled
         if (!muted) {
