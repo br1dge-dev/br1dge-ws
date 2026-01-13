@@ -29,11 +29,41 @@
       #sound-toggle.muted {
         opacity: 0.4;
       }
+      #sound-hint {
+        position: fixed;
+        left: 50%;
+        top: calc(50% + 12vh);
+        transform: translateX(-50%);
+        z-index: 50;
+        font-family: "SF Pro Display", "Helvetica Neue", system-ui, sans-serif;
+        font-size: 0.7rem;
+        letter-spacing: 0.25em;
+        color: rgba(255, 255, 255, 0.5);
+        pointer-events: none;
+        display: flex;
+        gap: 0.05em;
+      }
+      #sound-hint span {
+        display: inline-block;
+        animation: pop 2s ease-in-out infinite;
+      }
+      #sound-hint.hidden {
+        opacity: 0;
+        transition: opacity 0.5s ease;
+        pointer-events: none;
+      }
+      @keyframes pop {
+        0%, 100% { transform: translateY(0) scale(1); opacity: 0.5; }
+        50% { transform: translateY(-3px) scale(1.1); opacity: 0.9; }
+      }
     </style>
   </head>
   <body>
     <canvas id="canvas"></canvas>
     <button id="sound-toggle" aria-label="Toggle sound">🔊</button>
+    <div id="sound-hint">
+      <span>P</span><span>L</span><span>E</span><span>A</span><span>S</span><span>E</span><span>&nbsp;</span><span>E</span><span>N</span><span>A</span><span>B</span><span>L</span><span>E</span><span>&nbsp;</span><span>S</span><span>O</span><span>U</span><span>N</span><span>D</span>
+    </div>
     <script>
       const canvas = document.getElementById('canvas');
       const ctx = canvas.getContext('2d');
@@ -1509,6 +1539,19 @@
         }
       });
       
+      // Sound Hint - staggered animation per letter
+      const soundHint = document.getElementById('sound-hint');
+      const hintSpans = soundHint?.querySelectorAll('span');
+      hintSpans?.forEach((span, i) => {
+        // Random delay offset for each letter (playful, independent)
+        const delay = Math.random() * 1.5;
+        span.style.animationDelay = `${delay}s`;
+      });
+      
+      function hideSoundHint() {
+        soundHint?.classList.add('hidden');
+      }
+      
       // Sound Toggle Button
       const soundToggleBtn = document.getElementById('sound-toggle');
       soundToggleBtn?.addEventListener('click', (e) => {
@@ -1517,6 +1560,11 @@
         const muted = AudioSystem.toggleMute();
         soundToggleBtn.textContent = muted ? '🔇' : '🔊';
         soundToggleBtn.classList.toggle('muted', muted);
+        
+        // Hide hint when sound is enabled
+        if (!muted) {
+          hideSoundHint();
+        }
         
         // Stop/start ambient
         if (muted) {
