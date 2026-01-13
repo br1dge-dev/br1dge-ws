@@ -28,30 +28,59 @@
         background-size: 100px 100px;
       }
 
+      .grid-dot {
+        position: absolute;
+        width: 6px;
+        height: 6px;
+        background: #333;
+        border-radius: 50%;
+        animation: moveAlong 20s linear infinite;
+      }
+
+      @keyframes moveAlong {
+        0% { transform: translateX(0) translateY(0); opacity: 0.3; }
+        50% { opacity: 1; }
+        100% { transform: translateX(100px) translateY(100px); opacity: 0.3; }
+      }
+
       .container {
         position: relative;
         z-index: 10;
       }
 
-      .logo {
+      .logo-svg {
         width: 300px;
+        cursor: pointer;
         transition: transform 0.3s ease;
       }
 
-      .logo:hover {
-        transform: scale(1.05);
+      .logo-svg:hover {
+        transform: scale(1.08) rotate(2deg);
       }
 
-      .logo img {
-        width: 100%;
-        height: auto;
-        display: block;
-        filter: grayscale(100%);
-        transition: filter 0.3s ease;
+      .logo-glow {
+        animation: glowPulse 3s ease-in-out infinite;
       }
 
-      .logo:hover img {
-        filter: grayscale(0%);
+      @keyframes glowPulse {
+        0%, 100% { opacity: 0.3; }
+        50% { opacity: 0.8; }
+      }
+
+      .logo-svg:active .bridge-symbol {
+        animation: distort 0.3s ease-out;
+      }
+
+      @keyframes distort {
+        0% { transform: scale(1) skew(0deg); }
+        25% { transform: scale(1.1) skew(5deg); }
+        50% { transform: scale(0.95) skew(-5deg); }
+        75% { transform: scale(1.05) skew(3deg); }
+        100% { transform: scale(1) skew(0deg); }
+      }
+
+      body:hover .grid-dot {
+        animation-duration: 5s;
       }
 
       .corner {
@@ -60,6 +89,7 @@
         height: 40px;
         border: 2px solid #333;
         z-index: 20;
+        transition: border-color 0.3s ease;
       }
 
       .corner-tl { top: 20px; left: 20px; border-right: none; border-bottom: none; }
@@ -69,7 +99,19 @@
     </style>
   </head>
   <body>
-    <div class="grid"></div>
+    <div class="grid" id="grid"></div>
+    
+    <div class="grid-dot" style="top: 50%; left: 50%; animation-delay: 0s;"></div>
+    <div class="grid-dot" style="top: 50%; left: 150px; animation-delay: 0.5s;"></div>
+    <div class="grid-dot" style="top: 50%; left: 250px; animation-delay: 1s;"></div>
+    <div class="grid-dot" style="top: 50%; left: 350px; animation-delay: 1.5s;"></div>
+    <div class="grid-dot" style="top: 50%; left: 450px; animation-delay: 2s;"></div>
+    <div class="grid-dot" style="top: 50%; left: 550px; animation-delay: 2.5s;"></div>
+    <div class="grid-dot" style="top: 150px; left: 50%; animation-delay: 3s;"></div>
+    <div class="grid-dot" style="top: 250px; left: 50%; animation-delay: 3.5s;"></div>
+    <div class="grid-dot" style="top: 350px; left: 50%; animation-delay: 4s;"></div>
+    <div class="grid-dot" style="top: 450px; left: 50%; animation-delay: 4.5s;"></div>
+    <div class="grid-dot" style="top: 550px; left: 50%; animation-delay: 5s;"></div>
     
     <div class="corner corner-tl"></div>
     <div class="corner corner-tr"></div>
@@ -77,9 +119,96 @@
     <div class="corner corner-br"></div>
 
     <div class="container">
-      <div class="logo">
-        <img src="/bridge-logo.png" alt="br1dge logo" />
-      </div>
+      <svg class="logo-svg" id="logo" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#00FFFF" />
+            <stop offset="50%" style="stop-color:#FF00FF" />
+            <stop offset="100%" style="stop-color:#7C3AED" />
+          </linearGradient>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+            <feMerge>
+              <feMergeNode in="coloredBlur"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+        </defs>
+        
+        <circle cx="100" cy="100" r="80" fill="url(#logoGradient)" opacity="0.15" class="logo-glow" />
+        
+        <text 
+          class="bridge-symbol"
+          x="100" 
+          y="100" 
+          font-size="120" 
+          font-weight="bold" 
+          text-anchor="middle" 
+          dominant-baseline="central"
+          fill="url(#logoGradient)"
+          filter="url(#glow)"
+        >͆</text>
+      </svg>
     </div>
+
+    <script>
+      const logo = document.getElementById('logo');
+      
+      if (logo) {
+        logo.addEventListener('click', (e) => {
+          const ripple = document.createElement('div');
+          ripple.style.cssText = `
+            position: fixed;
+            width: 100px;
+            height: 100px;
+            border: 2px solid #00FFFF;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 5;
+            left: ${e.clientX - 50}px;
+            top: ${e.clientY - 50}px;
+            animation: rippleExpand 1s ease-out forwards;
+          `;
+          document.body.appendChild(ripple);
+          setTimeout(() => ripple.remove(), 1000);
+        });
+      }
+      
+      const style = document.createElement('style');
+      style.textContent = `
+        @keyframes rippleExpand {
+          0% { transform: scale(0.5); opacity: 1; }
+          100% { transform: scale(3); opacity: 0; }
+        }
+      `;
+      document.head.appendChild(style);
+      
+      document.addEventListener('mousemove', (e) => {
+        const dot = document.createElement('div');
+        dot.style.cssText = `
+          position: fixed;
+          width: 20px;
+          height: 20px;
+          background: radial-gradient(circle, #00FFFF 0%, transparent 70%);
+          border-radius: 50%;
+          pointer-events: none;
+          z-index: 8;
+          left: ${e.clientX - 10}px;
+          top: ${e.clientY - 10}px;
+          animation: dotFade 0.5s ease-out forwards;
+        `;
+        document.body.appendChild(dot);
+        setTimeout(() => dot.remove(), 500);
+      });
+      
+      const dotStyle = document.createElement('style');
+      dotStyle.textContent = `
+        @keyframes dotFade {
+          0% { transform: scale(1); opacity: 1; }
+          100% { transform: scale(2); opacity: 0; }
+        }
+      `;
+      document.head.appendChild(dotStyle);
+    </script>
   </body>
 </html>
