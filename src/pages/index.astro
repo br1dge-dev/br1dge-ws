@@ -32,16 +32,30 @@
       #sound-hint {
         position: fixed;
         left: 50%;
-        top: calc(50% + 12vh);
+        top: calc(50% + 18vh);
         transform: translateX(-50%);
         z-index: 50;
         font-family: "SF Pro Display", "Helvetica Neue", system-ui, sans-serif;
-        font-size: 0.7rem;
+        font-size: 0.9rem;
         letter-spacing: 0.25em;
         color: rgba(255, 255, 255, 0.5);
-        pointer-events: none;
+        pointer-events: auto;
+        cursor: pointer;
         display: flex;
-        gap: 0.05em;
+        align-items: center;
+        gap: 0.08em;
+        transition: color 0.3s ease;
+      }
+      #sound-hint:hover {
+        color: rgba(255, 255, 255, 0.8);
+      }
+      #sound-hint:hover span {
+        animation-play-state: paused;
+        opacity: 0.9;
+      }
+      #sound-hint .speaker {
+        margin-left: 0.5em;
+        font-size: 1.1em;
       }
       #sound-hint span {
         display: inline-block;
@@ -62,7 +76,7 @@
     <canvas id="canvas"></canvas>
     <button id="sound-toggle" aria-label="Toggle sound">🔊</button>
     <div id="sound-hint">
-      <span>P</span><span>L</span><span>E</span><span>A</span><span>S</span><span>E</span><span>&nbsp;</span><span>E</span><span>N</span><span>A</span><span>B</span><span>L</span><span>E</span><span>&nbsp;</span><span>S</span><span>O</span><span>U</span><span>N</span><span>D</span>
+      <span>P</span><span>L</span><span>E</span><span>A</span><span>S</span><span>E</span><span>&nbsp;</span><span>E</span><span>N</span><span>A</span><span>B</span><span>L</span><span>E</span><span>&nbsp;</span><span>S</span><span>O</span><span>U</span><span>N</span><span>D</span><span class="speaker">🔊</span>
     </div>
     <script>
       const canvas = document.getElementById('canvas');
@@ -1541,7 +1555,7 @@
       
       // Sound Hint - staggered animation per letter
       const soundHint = document.getElementById('sound-hint');
-      const hintSpans = soundHint?.querySelectorAll('span');
+      const hintSpans = soundHint?.querySelectorAll('span:not(.speaker)');
       hintSpans?.forEach((span, i) => {
         // Random delay offset for each letter (playful, independent)
         const delay = Math.random() * 1.5;
@@ -1551,6 +1565,25 @@
       function hideSoundHint() {
         soundHint?.classList.add('hidden');
       }
+      
+      function enableSound() {
+        initAudioOnInteraction();
+        if (AudioSystem.muted) {
+          AudioSystem.toggleMute();
+        }
+        hideSoundHint();
+        // Update toggle button state
+        if (soundToggleBtn) {
+          soundToggleBtn.textContent = '🔊';
+          soundToggleBtn.classList.remove('muted');
+        }
+      }
+      
+      // Sound Hint click handler - enables sound
+      soundHint?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        enableSound();
+      });
       
       // Sound Toggle Button
       const soundToggleBtn = document.getElementById('sound-toggle');
