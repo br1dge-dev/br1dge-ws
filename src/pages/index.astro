@@ -38,8 +38,9 @@
       // Red particle state
       let redParticleActive = false;
       let redParticleSpawnTime = 0;
+      let redParticleCatches = 0; // Wie oft gefangen in dieser Ladung
       let isInverted = false;
-      const redParticle = { x: 0, y: 0, vx: 0, vy: 0, active: false };
+      const redParticle = { x: 0, y: 0, vx: 0, vy: 0, active: false, phase: 0 };
       
       // Particles
       const particles = [];
@@ -62,6 +63,55 @@
         const dx = x - centerX;
         const dy = y - centerY;
         return Math.sqrt(dx * dx + dy * dy);
+      }
+      
+      // Modal für Level 10 - CLEAN, MINIMAL, STRIKING
+      let modalShown = false;
+      function showModal() {
+        if (modalShown) return;
+        modalShown = true;
+        
+        // Inversion zurücksetzen für Modal
+        canvas.style.filter = '';
+        isInverted = false;
+        
+        const modal = document.createElement('div');
+        modal.style.cssText = `
+          position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+          background: #000; color: #fff; display: flex; flex-direction: column;
+          justify-content: center; align-items: center; z-index: 1000;
+          font-family: "SF Pro Display", "Helvetica Neue", system-ui, sans-serif;
+          opacity: 0; transition: opacity 0.8s ease;
+        `;
+        modal.innerHTML = `
+          <div style="font-size: 8rem; font-weight: 100; margin-bottom: 1rem; letter-spacing: -0.05em;">∩</div>
+          <h1 style="font-size: 2.5rem; font-weight: 200; margin-bottom: 1.5rem; letter-spacing: 0.3em; text-transform: uppercase;">Level 10</h1>
+          <p style="font-size: 1rem; margin-bottom: 3rem; opacity: 0.6; font-weight: 300;">You unlocked the bridge. Follow for more.</p>
+          <div style="display: flex; gap: 1.5rem;">
+            <a href="https://x.com/br1dge_dev" target="_blank" style="color: #fff; text-decoration: none; font-size: 1rem; padding: 0.8rem 2rem; border: 1px solid rgba(255,255,255,0.3); transition: all 0.3s; letter-spacing: 0.1em;">X / TWITTER</a>
+            <a href="https://warpcast.com/br1dge" target="_blank" style="color: #fff; text-decoration: none; font-size: 1rem; padding: 0.8rem 2rem; border: 1px solid rgba(255,255,255,0.3); transition: all 0.3s; letter-spacing: 0.1em;">FARCASTER</a>
+          </div>
+          <p style="position: absolute; bottom: 2rem; font-size: 0.75rem; opacity: 0.3;">br1dge.xyz</p>
+        `;
+        
+        // Hover-Effekte für Links
+        modal.querySelectorAll('a').forEach(link => {
+          link.addEventListener('mouseenter', () => {
+            link.style.background = 'rgba(255,255,255,0.1)';
+            link.style.borderColor = '#fff';
+          });
+          link.addEventListener('mouseleave', () => {
+            link.style.background = 'transparent';
+            link.style.borderColor = 'rgba(255,255,255,0.3)';
+          });
+        });
+        
+        document.body.appendChild(modal);
+        
+        // Fade in
+        requestAnimationFrame(() => {
+          modal.style.opacity = '1';
+        });
       }
       
       // 2026 Minimal Background - Clean, Dark, Sophisticated
@@ -106,7 +156,7 @@
       // Draw the logo - CLEAN, MINIMAL, CENTERED
       function drawLogo() {
         const time = Date.now() / 1000;
-        const baseLogoSize = Math.min(W, H) * 0.22;
+        const baseLogoSize = Math.min(W, H) * 0.32; // Größer!
         const logoSize = baseLogoSize * logoBaseScale;
         
         logoScale += (logoTargetScale - logoScale) * 0.12;
@@ -123,11 +173,47 @@
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         
+        // Chromatic Aberration - VIEL STÄRKER mit Level
+        if (upgradeLevel > 0) {
+          const offset = 4 + upgradeLevel * 2.5; // Deutlich mehr Offset
+          const aberrationPulse = 1 + Math.sin(time * 3) * 0.15; // Pulsierend
+          const effectiveOffset = offset * aberrationPulse;
+          
+          // Mehrere Layer für stärkeren Effekt
+          ctx.globalAlpha = 0.15 + upgradeLevel * 0.04;
+          ctx.fillStyle = '#ff0066';
+          ctx.fillText('∩', -effectiveOffset * 1.5, -effectiveOffset * 0.3);
+          ctx.fillStyle = '#00ffff';
+          ctx.fillText('∩', effectiveOffset * 1.5, effectiveOffset * 0.3);
+          
+          // Zweiter Layer - näher
+          ctx.globalAlpha = 0.4 + upgradeLevel * 0.05;
+          ctx.fillStyle = '#ff0066';
+          ctx.fillText('∩', -effectiveOffset, 0);
+          ctx.fillStyle = '#00ffff';
+          ctx.fillText('∩', effectiveOffset, 0);
+          
+          // Grüner Kanal bei höheren Levels
+          if (upgradeLevel >= 3) {
+            ctx.globalAlpha = 0.2 + (upgradeLevel - 3) * 0.05;
+            ctx.fillStyle = '#00ff66';
+            ctx.fillText('∩', 0, -effectiveOffset * 0.5);
+          }
+          
+          ctx.globalAlpha = 1;
+        }
+        
         // Haupt-Symbol - weiß
         ctx.fillStyle = '#ffffff';
         ctx.fillText('∩', 0, 0);
         
         ctx.restore();
+        
+        // Level Anzeige rechts unten
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'right';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.fillText(`lvl:${upgradeLevel}`, W - 20, H - 20);
         
         // Expanding Rings bei Entladung - mit Farbe
         for (let i = logoOutlines.length - 1; i >= 0; i--) {
@@ -185,23 +271,28 @@
         if (ambientParticles.length < maxParticles && Math.random() < spawnRate) {
           let x, y, vx, vy;
           
-          // 70% von den Rändern, 30% zufällig im Bildschirm
-          if (Math.random() < 0.7) {
-            // Von Rändern
+          // 40% von Rändern, 60% im Bildschirm - bessere Verteilung
+          if (Math.random() < 0.4) {
+            // Von Rändern - mit Drift zur Mitte
             const edge = Math.floor(Math.random() * 4);
+            const centerX = W / 2, centerY = H / 2;
             switch(edge) {
-              case 0: x = Math.random() * W; y = -10; vx = (Math.random() - 0.5) * 0.5; vy = 0.5 + Math.random() * 0.5; break;
-              case 1: x = W + 10; y = Math.random() * H; vx = -(0.5 + Math.random() * 0.5); vy = (Math.random() - 0.5) * 0.5; break;
-              case 2: x = Math.random() * W; y = H + 10; vx = (Math.random() - 0.5) * 0.5; vy = -(0.5 + Math.random() * 0.5); break;
-              default: x = -10; y = Math.random() * H; vx = 0.5 + Math.random() * 0.5; vy = (Math.random() - 0.5) * 0.5;
+              case 0: x = Math.random() * W; y = -10; break;
+              case 1: x = W + 10; y = Math.random() * H; break;
+              case 2: x = Math.random() * W; y = H + 10; break;
+              default: x = -10; y = Math.random() * H;
             }
+            // Drift zur Mitte
+            const dx = centerX - x, dy = centerY - y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            vx = (dx / dist) * (0.8 + Math.random() * 0.6);
+            vy = (dy / dist) * (0.8 + Math.random() * 0.6);
           } else {
-            // Zufällig im sichtbaren Bereich (aber nicht zu nah am Cursor)
-            x = Math.random() * W;
-            y = Math.random() * H;
-            // Kleine zufällige Drift
-            vx = (Math.random() - 0.5) * 0.3;
-            vy = (Math.random() - 0.5) * 0.3;
+            // Im Bildschirm - mittlerer Bereich bevorzugt
+            x = W * 0.2 + Math.random() * W * 0.6;
+            y = H * 0.2 + Math.random() * H * 0.6;
+            vx = (Math.random() - 0.5) * 0.5;
+            vy = (Math.random() - 0.5) * 0.5;
           }
           
           ambientParticles.push({
@@ -243,9 +334,9 @@
             cursorEnergy = Math.min(MAX_ENERGY, cursorEnergy + 0.008);
             p.alpha *= 0.2;
             
-            // Wenn gerade voll geworden, Red Particle Timer starten
-            if (cursorEnergy >= MAX_ENERGY && !redParticleActive && !redParticle.active) {
-              redParticleSpawnTime = Date.now() + 2000; // 2 Sekunden warten
+            // Wenn gerade voll geworden UND noch Catches übrig, Red Particle spawnen
+            if (cursorEnergy >= MAX_ENERGY && !redParticle.active && redParticleCatches < 2) {
+              redParticleSpawnTime = Date.now() + 1500; // 1.5 Sekunden warten
               redParticleActive = true;
             }
           }
@@ -284,70 +375,108 @@
       
 
       
-      // Red Particle - spawnt nach voller Ladung
+      // Red Particle - spawnt nach voller Ladung, schwierige Flugbahn
       function drawRedParticle() {
+        const time = Date.now() / 1000;
+        
         // Spawn nach Timer
         if (redParticleActive && !redParticle.active && Date.now() > redParticleSpawnTime) {
-          // Von zufälliger Kante spawnen
           const edge = Math.floor(Math.random() * 4);
-          const speed = 4 + Math.random() * 3;
+          const speed = 6 + Math.random() * 4; // Schneller
           switch(edge) {
-            case 0: redParticle.x = Math.random() * W; redParticle.y = -10; redParticle.vx = (Math.random() - 0.5) * 2; redParticle.vy = speed; break;
-            case 1: redParticle.x = W + 10; redParticle.y = Math.random() * H; redParticle.vx = -speed; redParticle.vy = (Math.random() - 0.5) * 2; break;
-            case 2: redParticle.x = Math.random() * W; redParticle.y = H + 10; redParticle.vx = (Math.random() - 0.5) * 2; redParticle.vy = -speed; break;
-            default: redParticle.x = -10; redParticle.y = Math.random() * H; redParticle.vx = speed; redParticle.vy = (Math.random() - 0.5) * 2;
+            case 0: redParticle.x = Math.random() * W; redParticle.y = -10; break;
+            case 1: redParticle.x = W + 10; redParticle.y = Math.random() * H; break;
+            case 2: redParticle.x = Math.random() * W; redParticle.y = H + 10; break;
+            default: redParticle.x = -10; redParticle.y = Math.random() * H;
           }
+          // Zufällige Richtung - nicht direkt durch Mitte
+          const angle = Math.random() * Math.PI * 2;
+          redParticle.vx = Math.cos(angle) * speed;
+          redParticle.vy = Math.sin(angle) * speed;
           redParticle.active = true;
+          redParticle.phase = Math.random() * Math.PI * 2;
         }
         
         if (!redParticle.active) return;
         
-        // Update position
-        redParticle.x += redParticle.vx;
-        redParticle.y += redParticle.vy;
+        // Kurvige Flugbahn - Sinuswellen
+        redParticle.phase = (redParticle.phase || 0) + 0.15;
+        const curve = Math.sin(redParticle.phase) * 3;
+        const perpX = -redParticle.vy / Math.sqrt(redParticle.vx*redParticle.vx + redParticle.vy*redParticle.vy);
+        const perpY = redParticle.vx / Math.sqrt(redParticle.vx*redParticle.vx + redParticle.vy*redParticle.vy);
         
-        // Check capture by cursor
+        redParticle.x += redParticle.vx + perpX * curve;
+        redParticle.y += redParticle.vy + perpY * curve;
+        
+        // Check capture
         const dx = cursorX - redParticle.x;
         const dy = cursorY - redParticle.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         
-        if (dist < 25) {
-          // CAPTURED! Invert everything
-          isInverted = !isInverted;
+        if (dist < 30) {
+          // CAPTURED! Aktiviere Inversion
+          isInverted = true;
+          canvas.style.filter = 'invert(1)'; // GESAMTE APP INVERTIEREN!
           redParticle.active = false;
-          redParticleActive = false;
+          redParticleCatches++;
           
-          // Visual feedback
-          for (let i = 0; i < 30; i++) {
-            const angle = (i / 30) * Math.PI * 2;
+          // Roter Partikel-Burst - MASSIV
+          for (let i = 0; i < 60; i++) {
+            const angle = (i / 60) * Math.PI * 2;
+            const speed = 8 + Math.random() * 8;
             particles.push({
               x: redParticle.x,
               y: redParticle.y,
-              vx: Math.cos(angle) * 8,
-              vy: Math.sin(angle) * 8,
-              life: 1,
+              vx: Math.cos(angle) * speed,
+              vy: Math.sin(angle) * speed,
+              life: 1.2,
               hue: 0
             });
           }
+          
+          // Mehrere Shockwaves
+          for (let s = 0; s < 4; s++) {
+            setTimeout(() => {
+              ripples.push({
+                x: redParticle.x,
+                y: redParticle.y,
+                size: 10 + s * 30,
+                alpha: 1,
+                hue: 0
+              });
+            }, s * 50);
+          }
+          
+          // Wenn noch Catches übrig, neuer Red Particle spawnt
+          if (redParticleCatches < 2 && cursorEnergy >= MAX_ENERGY) {
+            redParticleSpawnTime = Date.now() + 1000;
+            redParticleActive = true;
+          }
         }
         
-        // Remove if off screen
+        // Off screen - neuer Versuch wenn noch Catches übrig
         if (redParticle.x < -50 || redParticle.x > W + 50 || redParticle.y < -50 || redParticle.y > H + 50) {
           redParticle.active = false;
-          redParticleActive = false;
+          if (redParticleCatches < 2 && cursorEnergy >= MAX_ENERGY) {
+            redParticleSpawnTime = Date.now() + 500;
+            redParticleActive = true;
+          }
         }
         
-        // Draw - bright blood red, larger
+        // Draw - helles Blutrot, pulsierend
+        const pulse = 1 + Math.sin(time * 10) * 0.2;
         ctx.beginPath();
-        ctx.arc(redParticle.x, redParticle.y, 6, 0, Math.PI * 2);
-        ctx.fillStyle = '#ff1a1a';
+        ctx.arc(redParticle.x, redParticle.y, 5 * pulse, 0, Math.PI * 2);
+        ctx.fillStyle = '#ff2222';
         ctx.fill();
         
-        // Glow
+        // Trail
         ctx.beginPath();
-        ctx.arc(redParticle.x, redParticle.y, 12, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255, 26, 26, 0.3)';
-        ctx.fill();
+        ctx.moveTo(redParticle.x, redParticle.y);
+        ctx.lineTo(redParticle.x - redParticle.vx * 2, redParticle.y - redParticle.vy * 2);
+        ctx.strokeStyle = 'rgba(255, 34, 34, 0.6)';
+        ctx.lineWidth = 3;
+        ctx.stroke();
       }
       
       // Minimal overlay - nur subtile Vignette
@@ -493,28 +622,43 @@
         });
         
         // Nur wenn auf Logo geklickt UND Threshold erreicht
-        if (dist < logoRadius && cursorEnergy >= ENERGY_THRESHOLD) {
-          upgradeLevel++;
-          logoBaseScale += 0.05;
+        if (dist < logoRadius && cursorEnergy >= ENERGY_THRESHOLD && upgradeLevel < 10) {
+          // Bei Inversion: 3 Levels auf einmal
+          const levelsToAdd = isInverted ? 3 : 1;
+          upgradeLevel = Math.min(10, upgradeLevel + levelsToAdd);
+          logoBaseScale += 0.18 * levelsToAdd; // NOCH STÄRKER - sehr sichtbar
+          
+          // Inversion zurücksetzen nach Discharge
+          if (isInverted) {
+            isInverted = false;
+            canvas.style.filter = '';
+          }
           
           const intensity = cursorEnergy;
-          const releaseHue = (upgradeLevel * 50) % 360;
+          const releaseHue = (upgradeLevel * 40) % 360;
           
-          // Farbige expanding rings
-          const ringCount = 4 + upgradeLevel;
+          // Mehr Ringe bei höheren Levels
+          const ringCount = 5 + upgradeLevel * 2;
           for (let o = 0; o < ringCount; o++) {
             setTimeout(() => {
               logoOutlines.push({
                 alpha: 1,
-                radius: 15 + o * 8,
-                hue: (releaseHue + o * 20) % 360
+                radius: 10 + o * 6,
+                hue: (releaseHue + o * 15) % 360
               });
-            }, o * 25);
+            }, o * 20);
           }
           
-          // Scale punch - stärker
-          logoTargetScale = 1.25;
-          setTimeout(() => { logoTargetScale = 1; }, 120);
+          // Scale punch - stärker bei höheren Levels
+          logoTargetScale = 1.2 + upgradeLevel * 0.05;
+          setTimeout(() => { logoTargetScale = 1; }, 150);
+          
+          // Level 10 erreicht - Modal zeigen
+          if (upgradeLevel >= 10) {
+            setTimeout(() => {
+              showModal();
+            }, 500);
+          }
           
           // DRUCKWELLE - alle ambient particles wegstoßen
           for (let ap of ambientParticles) {
@@ -558,6 +702,8 @@
           
           cursorEnergy = 0;
           redParticleActive = false;
+          redParticleCatches = 0; // Reset für nächste Ladung
+          redParticle.active = false;
         }
       });
       
@@ -592,14 +738,21 @@
             hue: 0
           });
           
-          if (dist < logoRadius && cursorEnergy >= ENERGY_THRESHOLD) {
-            upgradeLevel++;
-            logoBaseScale += 0.05;
+          if (dist < logoRadius && cursorEnergy >= ENERGY_THRESHOLD && upgradeLevel < 10) {
+            const levelsToAdd = isInverted ? 3 : 1;
+            upgradeLevel = Math.min(10, upgradeLevel + levelsToAdd);
+            logoBaseScale += 0.18 * levelsToAdd; // Stärker wie Desktop
+            
+            // Inversion zurücksetzen nach Discharge
+            if (isInverted) {
+              isInverted = false;
+              canvas.style.filter = '';
+            }
             
             const intensity = cursorEnergy;
             const releaseHue = (upgradeLevel * 50) % 360;
             
-            const ringCount = 4 + upgradeLevel;
+            const ringCount = 5 + upgradeLevel * 2;
             for (let o = 0; o < ringCount; o++) {
               setTimeout(() => {
                 logoOutlines.push({
@@ -612,6 +765,13 @@
             
             logoTargetScale = 1.25;
             setTimeout(() => { logoTargetScale = 1; }, 120);
+            
+            // Level 10 Modal
+            if (upgradeLevel >= 10) {
+              setTimeout(() => {
+                showModal();
+              }, 500);
+            }
             
             // Druckwelle
             for (let ap of ambientParticles) {
@@ -653,6 +813,8 @@
             
             cursorEnergy = 0;
             redParticleActive = false;
+            redParticleCatches = 0;
+            redParticle.active = false;
           }
         }
       });
