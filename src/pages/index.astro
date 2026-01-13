@@ -1,10 +1,80 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import Hero from '../components/sections/Hero';
-import Navigation from '../components/ui/Navigation';
 ---
 
-<Layout title="br1dge.xyz">
-  <Navigation client:load />
-  <Hero client:load />
-</Layout>
+<section id="hero" className="relative h-screen w-full flex items-center justify-center bg-black">
+  <canvas id="bridgeCanvas" className="absolute inset-0" />
+</section>
+
+<script>
+  const canvas = document.getElementById('bridgeCanvas');
+  const ctx = canvas.getContext('2d');
+
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  let mouseX = window.innerWidth / 2;
+  let mouseY = window.innerHeight / 2;
+  let bridgeX = window.innerWidth / 2;
+  let bridgeY = window.innerHeight / 2;
+
+  window.addEventListener('mousemove', (e) => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+  });
+
+  window.addEventListener('resize', () => {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    bridgeX = canvas.width / 2;
+    bridgeY = canvas.height / 2;
+  });
+
+  function draw() {
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw grid background
+    ctx.strokeStyle = 'rgba(51, 51, 51, 0.5)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < canvas.width; x += 60) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, canvas.height);
+      ctx.stroke();
+    }
+    for (let y = 0; y < canvas.height; y += 60) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(canvas.width, y);
+      ctx.stroke();
+    }
+
+    // Draw cursor effect
+    ctx.beginPath();
+    ctx.arc(mouseX, mouseY, 10, 0, Math.PI * 2);
+    ctx.fillStyle = '#00FFFF';
+    ctx.fill();
+
+    // Draw bridge
+    ctx.font = 'bold 100px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#E5E5E5';
+
+    const dx = mouseX - bridgeX;
+    const dy = mouseY - bridgeY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    const maxDistance = 300;
+    const scale = Math.min(1 + (1 - Math.min(distance, maxDistance) / maxDistance) * 0.5, 1.5);
+    const offsetX = dx * 0.1;
+    const offsetY = dy * 0.1;
+
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    ctx.fillText('͆', bridgeX + offsetX / scale, bridgeY + offsetY / scale);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+    requestAnimationFrame(draw);
+  }
+
+  draw();
+</script>

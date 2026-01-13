@@ -5,7 +5,7 @@ interface Props {
   description?: string;
 }
 
-const { title, description = 'br1dge.xyz - Digital Brutalist Portfolio' } = Astro.props;
+const { title, description = 'br1dge.xyz' } = Astro.props;
 ---
 
 <!doctype html>
@@ -18,7 +18,7 @@ const { title, description = 'br1dge.xyz - Digital Brutalist Portfolio' } = Astr
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
   </head>
-  <body>
+  <body class="bg-black text-white overflow-x-hidden">
     <slot />
   </body>
 </html>
