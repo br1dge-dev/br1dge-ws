@@ -8,13 +8,382 @@
       * { margin: 0; padding: 0; box-sizing: border-box; cursor: none; }
       html, body { height: 100%; width: 100%; overflow: hidden; background: #000; }
       #canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; }
+      #sound-toggle {
+        position: fixed;
+        bottom: 1.2rem;
+        right: 1.2rem;
+        z-index: 100;
+        background: transparent;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 1rem;
+        padding: 0.5rem 0.7rem;
+        cursor: none;
+        transition: all 0.3s ease;
+        font-family: system-ui, sans-serif;
+      }
+      #sound-toggle:hover {
+        border-color: rgba(255, 255, 255, 0.5);
+        color: #fff;
+      }
+      #sound-toggle.muted {
+        opacity: 0.4;
+      }
     </style>
   </head>
   <body>
     <canvas id="canvas"></canvas>
+    <button id="sound-toggle" aria-label="Toggle sound">🔊</button>
     <script>
       const canvas = document.getElementById('canvas');
       const ctx = canvas.getContext('2d');
+      
+      // ========================================
+      // AUDIO SYSTEM - Web Audio API
+      // ========================================
+      const AudioSystem = {
+        ctx: null,
+        masterGain: null,
+        compressor: null,
+        initialized: false,
+        muted: false,
+        ambientStarted: false,
+        ambientNodes: [],
+        
+        init() {
+          if (this.initialized) return;
+          try {
+            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // Master chain: masterGain -> compressor -> destination
+            this.compressor = this.ctx.createDynamicsCompressor();
+            this.compressor.threshold.setValueAtTime(-24, this.ctx.currentTime);
+            this.compressor.knee.setValueAtTime(30, this.ctx.currentTime);
+            this.compressor.ratio.setValueAtTime(12, this.ctx.currentTime);
+            this.compressor.attack.setValueAtTime(0.003, this.ctx.currentTime);
+            this.compressor.release.setValueAtTime(0.25, this.ctx.currentTime);
+            this.compressor.connect(this.ctx.destination);
+            
+            this.masterGain = this.ctx.createGain();
+            this.masterGain.gain.setValueAtTime(0.6, this.ctx.currentTime);
+            this.masterGain.connect(this.compressor);
+            
+            this.initialized = true;
+          } catch (e) {
+            console.warn('Web Audio API not supported');
+          }
+        },
+        
+        async resume() {
+          if (this.ctx && this.ctx.state === 'suspended') {
+            await this.ctx.resume();
+          }
+        },
+        
+        toggleMute() {
+          if (!this.initialized) return false;
+          this.muted = !this.muted;
+          const targetVol = this.muted ? 0 : 0.6;
+          this.masterGain.gain.linearRampToValueAtTime(targetVol, this.ctx.currentTime + 0.1);
+          return this.muted;
+        },
+        
+        // --- SFX GENERATORS ---
+        
+        // Energy collect - quick ascending blip
+        playCollect(pitch = 0) {
+          if (!this.initialized || this.muted) return;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          
+          osc.connect(gain);
+          gain.connect(this.masterGain);
+          
+          const baseFreq = 600 + pitch * 100;
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(baseFreq, this.ctx.currentTime);
+          osc.frequency.linearRampToValueAtTime(baseFreq * 1.2, this.ctx.currentTime + 0.05);
+          
+          gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.08);
+          
+          osc.start(this.ctx.currentTime);
+          osc.stop(this.ctx.currentTime + 0.1);
+        },
+        
+        // Red particle capture - deep thump
+        playCapture() {
+          if (!this.initialized || this.muted) return;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          
+          osc.connect(gain);
+          gain.connect(this.masterGain);
+          
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(60, this.ctx.currentTime + 0.15);
+          
+          gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.2);
+          
+          osc.start(this.ctx.currentTime);
+          osc.stop(this.ctx.currentTime + 0.25);
+          
+          // Add noise burst
+          this.playNoiseBurst(0.1, 800);
+        },
+        
+        // Discharge - impact burst
+        playDischarge(level = 1) {
+          if (!this.initialized || this.muted) return;
+          const now = this.ctx.currentTime;
+          
+          // Low sine thump
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.connect(gain);
+          gain.connect(this.masterGain);
+          
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(80 + level * 10, now);
+          osc.frequency.exponentialRampToValueAtTime(40, now + 0.2);
+          
+          gain.gain.setValueAtTime(0.35, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+          
+          osc.start(now);
+          osc.stop(now + 0.35);
+          
+          // Noise burst
+          this.playNoiseBurst(0.15, 600 + level * 50);
+        },
+        
+        // Level up - ascending chime
+        playLevelUp(level = 1) {
+          if (!this.initialized || this.muted) return;
+          const now = this.ctx.currentTime;
+          const baseFreq = 400 + level * 20;
+          
+          // Arpeggio: 3 notes ascending
+          [0, 0.08, 0.16].forEach((delay, i) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(baseFreq * (1 + i * 0.25), now + delay);
+            
+            gain.gain.setValueAtTime(0, now + delay);
+            gain.gain.linearRampToValueAtTime(0.25, now + delay + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.25);
+            
+            osc.start(now + delay);
+            osc.stop(now + delay + 0.3);
+          });
+        },
+        
+        // Max stack - triumphant chord
+        playMaxStack() {
+          if (!this.initialized || this.muted) return;
+          const now = this.ctx.currentTime;
+          
+          // C major chord: C4, E4, G4, C5
+          const freqs = [261.63, 329.63, 392.00, 523.25];
+          freqs.forEach((freq, i) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, now);
+            
+            gain.gain.setValueAtTime(0, now);
+            gain.gain.linearRampToValueAtTime(0.2, now + 0.05);
+            gain.gain.setValueAtTime(0.2, now + 0.3);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+            
+            osc.start(now);
+            osc.stop(now + 0.9);
+          });
+        },
+        
+        // Modal enter - gentle ding
+        playModalEnter() {
+          if (!this.initialized || this.muted) return;
+          const now = this.ctx.currentTime;
+          
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.connect(gain);
+          gain.connect(this.masterGain);
+          
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(880, now);
+          
+          gain.gain.setValueAtTime(0, now);
+          gain.gain.linearRampToValueAtTime(0.25, now + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 1.0);
+          
+          osc.start(now);
+          osc.stop(now + 1.1);
+        },
+        
+        // Modal close - descending tone
+        playModalClose() {
+          if (!this.initialized || this.muted) return;
+          const now = this.ctx.currentTime;
+          
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.connect(gain);
+          gain.connect(this.masterGain);
+          
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(660, now);
+          osc.frequency.exponentialRampToValueAtTime(330, now + 0.3);
+          
+          gain.gain.setValueAtTime(0.2, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+          
+          osc.start(now);
+          osc.stop(now + 0.45);
+        },
+        
+        // Helper: Noise burst
+        playNoiseBurst(duration = 0.1, filterFreq = 1000) {
+          if (!this.initialized || this.muted) return;
+          const now = this.ctx.currentTime;
+          const bufferSize = this.ctx.sampleRate * duration;
+          const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+          const data = buffer.getChannelData(0);
+          
+          for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+          }
+          
+          const noise = this.ctx.createBufferSource();
+          const filter = this.ctx.createBiquadFilter();
+          const gain = this.ctx.createGain();
+          
+          noise.buffer = buffer;
+          filter.type = 'lowpass';
+          filter.frequency.setValueAtTime(filterFreq, now);
+          
+          noise.connect(filter);
+          filter.connect(gain);
+          gain.connect(this.masterGain);
+          
+          gain.gain.setValueAtTime(0.15, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+          
+          noise.start(now);
+        },
+        
+        // --- AMBIENT DRONE ---
+        
+        startAmbient() {
+          if (!this.initialized || this.muted || this.ambientStarted) return;
+          this.ambientStarted = true;
+          
+          // Two slightly detuned sine waves for "beating" effect
+          const freqs = [110, 110.5]; // A2 with slight detune
+          
+          freqs.forEach(freq => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+            
+            // Very quiet
+            gain.gain.setValueAtTime(0, this.ctx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.04, this.ctx.currentTime + 2);
+            
+            osc.start(this.ctx.currentTime);
+            
+            this.ambientNodes.push({ osc, gain });
+          });
+          
+          // Add subtle harmonic
+          const harmOsc = this.ctx.createOscillator();
+          const harmGain = this.ctx.createGain();
+          harmOsc.connect(harmGain);
+          harmGain.connect(this.masterGain);
+          harmOsc.type = 'sine';
+          harmOsc.frequency.setValueAtTime(220, this.ctx.currentTime);
+          harmGain.gain.setValueAtTime(0, this.ctx.currentTime);
+          harmGain.gain.linearRampToValueAtTime(0.015, this.ctx.currentTime + 3);
+          harmOsc.start(this.ctx.currentTime);
+          this.ambientNodes.push({ osc: harmOsc, gain: harmGain });
+        },
+        
+        stopAmbient() {
+          if (!this.ambientStarted) return;
+          const now = this.ctx.currentTime;
+          
+          this.ambientNodes.forEach(({ osc, gain }) => {
+            gain.gain.linearRampToValueAtTime(0, now + 1);
+            osc.stop(now + 1.1);
+          });
+          
+          this.ambientNodes = [];
+          this.ambientStarted = false;
+        }
+      };
+      
+      // ========================================
+      // HAPTIC MANAGER - Vibration API
+      // ========================================
+      const HapticManager = {
+        supported: 'vibrate' in navigator,
+        
+        vibrate(pattern) {
+          if (this.supported && !AudioSystem.muted) {
+            navigator.vibrate(pattern);
+          }
+        },
+        
+        // Predefined patterns
+        collect() { this.vibrate(15); },
+        capture() { this.vibrate(50); },
+        discharge() { this.vibrate(100); },
+        levelUp() { this.vibrate([25, 50, 25]); },
+        maxStack() { this.vibrate([40, 80, 40, 80, 40]); },
+        modalEnter() { this.vibrate(60); }
+      };
+      
+      // ========================================
+      // INIT AUDIO ON FIRST INTERACTION
+      // ========================================
+      let audioInitialized = false;
+      function initAudioOnInteraction() {
+        if (audioInitialized) return;
+        audioInitialized = true;
+        AudioSystem.init();
+        AudioSystem.resume();
+      }
+      
+      document.addEventListener('click', initAudioOnInteraction, { once: false });
+      document.addEventListener('touchstart', initAudioOnInteraction, { once: false });
+      
+      // Pause audio when tab is hidden
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden && AudioSystem.ambientStarted) {
+          AudioSystem.ambientNodes.forEach(({ gain }) => {
+            gain.gain.linearRampToValueAtTime(0, AudioSystem.ctx.currentTime + 0.5);
+          });
+        } else if (!document.hidden && AudioSystem.ambientStarted && !AudioSystem.muted) {
+          AudioSystem.ambientNodes.forEach(({ gain }) => {
+            gain.gain.linearRampToValueAtTime(0.04, AudioSystem.ctx.currentTime + 0.5);
+          });
+        }
+      });
       
       let W, H, centerX, centerY;
       let mouseX = 0, mouseY = 0;
@@ -77,6 +446,9 @@
       let modalTargetX = 0, modalTargetY = 0;
       
       function closeModal(modal) {
+        // Audio: Modal close
+        AudioSystem.playModalClose();
+        
         modal.style.opacity = '0';
         setTimeout(() => {
           modal.remove();
@@ -157,6 +529,10 @@
       function showModal() {
         if (modalShown) return;
         modalShown = true;
+        
+        // Audio & Haptic: Modal enter
+        AudioSystem.playModalEnter();
+        HapticManager.modalEnter();
         
         // Inversion zurücksetzen für Modal
         canvas.style.filter = '';
@@ -498,8 +874,20 @@
           // Partikel wird vom Cursor absorbiert - nur wenn nicht voll
           if (dist < 20 && !p.absorbed && cursorEnergy < MAX_ENERGY) {
             p.absorbed = true;
+            const prevEnergy = cursorEnergy;
             cursorEnergy = Math.min(MAX_ENERGY, cursorEnergy + 0.008);
             p.alpha *= 0.2;
+            
+            // Audio & Haptic: Collect Sound (throttled, every ~10%)
+            if (Math.floor(cursorEnergy * 10) > Math.floor(prevEnergy * 10)) {
+              AudioSystem.playCollect(Math.floor(cursorEnergy * 5));
+              HapticManager.collect();
+            }
+            
+            // Start ambient on first energy collect
+            if (prevEnergy === 0 && cursorEnergy > 0) {
+              AudioSystem.startAmbient();
+            }
             
             // Wenn gerade voll geworden, Red Particle spawnen (einmalig pro Ladung)
             if (cursorEnergy >= MAX_ENERGY && !redParticle.active && !redParticleActive) {
@@ -614,12 +1002,20 @@
           redParticle.active = false;
           redParticleCatches++;
           
+          // Audio & Haptic: Capture
+          AudioSystem.playCapture();
+          HapticManager.capture();
+          
           // Im inverted mode: Stack aufbauen
           if (isInverted && redStackCount < MAX_RED_STACK) {
             redStackCount++;
             
             // Bei MAX_RED_STACK (6): Sofort Level 10!
             if (redStackCount >= MAX_RED_STACK) {
+              // Audio & Haptic: Max Stack!
+              AudioSystem.playMaxStack();
+              HapticManager.maxStack();
+              
               // MEGA BURST - goldene Partikel
               for (let i = 0; i < 100; i++) {
                 const angle = (i / 100) * Math.PI * 2;
@@ -854,6 +1250,7 @@
         if (dist < logoRadius && cursorEnergy >= ENERGY_THRESHOLD && upgradeLevel < 10) {
           let levelsToAdd = 1;
           let isMaxStack = false;
+          const prevLevel = upgradeLevel;
           
           // Bei max red stack (6): Sofort Level 10!
           if (redStackCount >= MAX_RED_STACK) {
@@ -871,12 +1268,27 @@
             logoBaseScale += 0.18;
           }
           
+          // Audio & Haptic: Discharge
+          AudioSystem.playDischarge(upgradeLevel);
+          HapticManager.discharge();
+          
+          // Audio & Haptic: Level Up (wenn Level gestiegen)
+          if (upgradeLevel > prevLevel) {
+            setTimeout(() => {
+              AudioSystem.playLevelUp(upgradeLevel);
+              HapticManager.levelUp();
+            }, 150);
+          }
+          
           // Inversion und Stack zurücksetzen nach Discharge
           if (isInverted) {
             isInverted = false;
             canvas.style.filter = '';
           }
           redStackCount = 0;
+          
+          // Stop ambient after discharge (energy is 0)
+          AudioSystem.stopAmbient();
           
           const intensity = cursorEnergy;
           const releaseHue = isMaxStack ? 45 : (upgradeLevel * 40) % 360; // Gold bei max stack
@@ -986,6 +1398,7 @@
           if (dist < logoRadius && cursorEnergy >= ENERGY_THRESHOLD && upgradeLevel < 10) {
             let levelsToAdd = 1;
             let isMaxStack = false;
+            const prevLevel = upgradeLevel;
             
             // Bei max red stack (6): Sofort Level 10!
             if (redStackCount >= MAX_RED_STACK) {
@@ -1003,12 +1416,27 @@
               logoBaseScale += 0.18;
             }
             
+            // Audio & Haptic: Discharge
+            AudioSystem.playDischarge(upgradeLevel);
+            HapticManager.discharge();
+            
+            // Audio & Haptic: Level Up
+            if (upgradeLevel > prevLevel) {
+              setTimeout(() => {
+                AudioSystem.playLevelUp(upgradeLevel);
+                HapticManager.levelUp();
+              }, 150);
+            }
+            
             // Inversion und Stack zurücksetzen nach Discharge
             if (isInverted) {
               isInverted = false;
               canvas.style.filter = '';
             }
             redStackCount = 0;
+            
+            // Stop ambient after discharge
+            AudioSystem.stopAmbient();
             
             const intensity = cursorEnergy;
             const releaseHue = isMaxStack ? 45 : (upgradeLevel * 50) % 360;
@@ -1078,6 +1506,23 @@
             redParticleCatches = 0;
             redParticle.active = false;
           }
+        }
+      });
+      
+      // Sound Toggle Button
+      const soundToggleBtn = document.getElementById('sound-toggle');
+      soundToggleBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        initAudioOnInteraction();
+        const muted = AudioSystem.toggleMute();
+        soundToggleBtn.textContent = muted ? '🔇' : '🔊';
+        soundToggleBtn.classList.toggle('muted', muted);
+        
+        // Stop/start ambient
+        if (muted) {
+          AudioSystem.stopAmbient();
+        } else if (cursorEnergy > 0) {
+          AudioSystem.startAmbient();
         }
       });
       
