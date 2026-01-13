@@ -8,7 +8,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>br1dge.xyz</title>
     <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; }
+      * { 
+        margin: 0; 
+        padding: 0; 
+        box-sizing: border-box; 
+        cursor: none !important;
+      }
+      
+      @media (max-width: 768px) {
+        * { cursor: auto !important; }
+      }
       
       body {
         background: #0a0a0a;
@@ -28,90 +37,86 @@
         background-size: 100px 100px;
       }
 
-      .grid-dot {
-        position: absolute;
-        width: 6px;
-        height: 6px;
-        background: #333;
-        border-radius: 50%;
-        animation: moveAlong 20s linear infinite;
-      }
-
-      @keyframes moveAlong {
-        0% { transform: translateX(0) translateY(0); opacity: 0.3; }
-        50% { opacity: 1; }
-        100% { transform: translateX(100px) translateY(100px); opacity: 0.3; }
-      }
-
       .container {
         position: relative;
         z-index: 10;
       }
 
       .logo-svg {
-        width: 300px;
-        cursor: pointer;
-        transition: transform 0.3s ease;
+        width: 400px;
+        cursor: none;
+        transition: transform 0.15s ease-out;
       }
 
       .logo-svg:hover {
-        transform: scale(1.08) rotate(2deg);
+        transform: scale(1.05);
       }
 
-      .logo-glow {
-        animation: glowPulse 3s ease-in-out infinite;
+      /* Smooth animated fill color */
+      .bridge-text {
+        animation: colorCycle 4s ease-in-out infinite;
       }
 
-      @keyframes glowPulse {
-        0%, 100% { opacity: 0.3; }
-        50% { opacity: 0.8; }
+      @keyframes colorCycle {
+        0% { fill: #00FFFF; filter: drop-shadow(0 0 20px #00FFFF); }
+        33% { fill: #FF00FF; filter: drop-shadow(0 0 20px #FF00FF); }
+        66% { fill: #7C3AED; filter: drop-shadow(0 0 20px #7C3AED); }
+        100% { fill: #00FFFF; filter: drop-shadow(0 0 20px #00FFFF); }
       }
 
-      .logo-svg:active .bridge-symbol {
-        animation: distort 0.3s ease-out;
+      /* Custom cursor - small and snappy */
+      .cursor {
+        position: fixed;
+        width: 8px;
+        height: 8px;
+        background: white;
+        border-radius: 50%;
+        pointer-events: none;
+        z-index: 1000;
+        mix-blend-mode: difference;
+        transform: translate(-50%, -50%);
+        transition: transform 0.05s ease-out, width 0.1s, height 0.1s;
       }
 
-      @keyframes distort {
-        0% { transform: scale(1) skew(0deg); }
-        25% { transform: scale(1.1) skew(5deg); }
-        50% { transform: scale(0.95) skew(-5deg); }
-        75% { transform: scale(1.05) skew(3deg); }
-        100% { transform: scale(1) skew(0deg); }
+      .cursor.active {
+        width: 20px;
+        height: 20px;
+        background: rgba(0, 255, 255, 0.5);
       }
 
-      body:hover .grid-dot {
-        animation-duration: 5s;
+      .cursor-trail {
+        position: fixed;
+        width: 4px;
+        height: 4px;
+        background: rgba(0, 255, 255, 0.6);
+        border-radius: 50%;
+        pointer-events: none;
+        z: 999;
       }
 
       .corner {
         position: fixed;
-        width: 40px;
-        height: 40px;
+        width: 30px;
+        height: 30px;
         border: 2px solid #333;
         z-index: 20;
-        transition: border-color 0.3s ease;
+        transition: border-color 0.2s ease;
       }
 
       .corner-tl { top: 20px; left: 20px; border-right: none; border-bottom: none; }
       .corner-tr { top: 20px; right: 20px; border-left: none; border-bottom: none; }
       .corner-bl { bottom: 20px; left: 20px; border-right: none; border-top: none; }
       .corner-br { bottom: 20px; right: 20px; border-left: none; border-top: none; }
+
+      .logo-svg:hover ~ .corner {
+        border-color: #00FFFF;
+      }
     </style>
   </head>
   <body>
-    <div class="grid" id="grid"></div>
+    <div class="grid"></div>
     
-    <div class="grid-dot" style="top: 50%; left: 50%; animation-delay: 0s;"></div>
-    <div class="grid-dot" style="top: 50%; left: 150px; animation-delay: 0.5s;"></div>
-    <div class="grid-dot" style="top: 50%; left: 250px; animation-delay: 1s;"></div>
-    <div class="grid-dot" style="top: 50%; left: 350px; animation-delay: 1.5s;"></div>
-    <div class="grid-dot" style="top: 50%; left: 450px; animation-delay: 2s;"></div>
-    <div class="grid-dot" style="top: 50%; left: 550px; animation-delay: 2.5s;"></div>
-    <div class="grid-dot" style="top: 150px; left: 50%; animation-delay: 3s;"></div>
-    <div class="grid-dot" style="top: 250px; left: 50%; animation-delay: 3.5s;"></div>
-    <div class="grid-dot" style="top: 350px; left: 50%; animation-delay: 4s;"></div>
-    <div class="grid-dot" style="top: 450px; left: 50%; animation-delay: 4.5s;"></div>
-    <div class="grid-dot" style="top: 550px; left: 50%; animation-delay: 5s;"></div>
+    <div class="cursor" id="cursor"></div>
     
     <div class="corner corner-tl"></div>
     <div class="corner corner-tr"></div>
@@ -120,95 +125,93 @@
 
     <div class="container">
       <svg class="logo-svg" id="logo" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" style="stop-color:#00FFFF" />
-            <stop offset="50%" style="stop-color:#FF00FF" />
-            <stop offset="100%" style="stop-color:#7C3AED" />
-          </linearGradient>
-          <filter id="glow">
-            <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-            <feMerge>
-              <feMergeNode in="coloredBlur"/>
-              <feMergeNode in="SourceGraphic"/>
-            </feMerge>
-          </filter>
-        </defs>
-        
-        <circle cx="100" cy="100" r="80" fill="url(#logoGradient)" opacity="0.15" class="logo-glow" />
-        
         <text 
-          class="bridge-symbol"
+          class="bridge-text"
           x="100" 
           y="100" 
-          font-size="120" 
+          font-size="140" 
           font-weight="bold" 
           text-anchor="middle" 
           dominant-baseline="central"
-          fill="url(#logoGradient)"
-          filter="url(#glow)"
         >͆</text>
       </svg>
     </div>
 
     <script>
+      const cursor = document.getElementById('cursor');
       const logo = document.getElementById('logo');
+      const trails: HTMLElement[] = [];
       
-      if (logo) {
-        logo.addEventListener('click', (e) => {
-          const ripple = document.createElement('div');
-          ripple.style.cssText = `
-            position: fixed;
-            width: 100px;
-            height: 100px;
-            border: 2px solid #00FFFF;
-            border-radius: 50%;
-            pointer-events: none;
-            z-index: 5;
-            left: ${e.clientX - 50}px;
-            top: ${e.clientY - 50}px;
-            animation: rippleExpand 1s ease-out forwards;
-          `;
-          document.body.appendChild(ripple);
-          setTimeout(() => ripple.remove(), 1000);
+      let mouseX = 0;
+      let mouseY = 0;
+      let cursorX = 0;
+      let cursorY = 0;
+
+      document.addEventListener('mousemove', (e) => {
+        mouseX = e.clientX;
+        mouseY = e.clientY;
+        
+        // Add trail
+        const trail = document.createElement('div');
+        trail.className = 'cursor-trail';
+        trail.style.left = e.clientX + 'px';
+        trail.style.top = e.clientY + 'px';
+        document.body.appendChild(trail);
+        trails.push(trail);
+        
+        if (trails.length > 8) {
+          const old = trails.shift();
+          if (old) old.remove();
+        }
+        
+        // Update trail positions
+        trails.forEach((t, i) => {
+          t.style.opacity = String((8 - i) / 8);
+          t.style.transform = `translate(${(i + 1) * -2}px, ${(i + 1) * -2}px)`;
         });
+      });
+
+      // Smooth cursor follow
+      function animateCursor() {
+        cursorX += (mouseX - cursorX) * 0.3;
+        cursorY += (mouseY - cursorY) * 0.3;
+        cursor!.style.left = cursorX + 'px';
+        cursor!.style.top = cursorY + 'px';
+        requestAnimationFrame(animateCursor);
       }
+      animateCursor();
+
+      // Cursor on logo
+      logo?.addEventListener('mouseenter', () => cursor?.classList.add('active'));
+      logo?.addEventListener('mouseleave', () => cursor?.classList.remove('active'));
       
+      // Click ripple
+      logo?.addEventListener('click', (e) => {
+        const ripple = document.createElement('div');
+        ripple.style.cssText = `
+          position: fixed;
+          width: 60px;
+          height: 60px;
+          border: 2px solid #00FFFF;
+          border-radius: 50%;
+          pointer-events: none;
+          z-index: 50;
+          left: ${e.clientX - 30}px;
+          top: ${e.clientY - 30}px;
+          animation: ripple 0.4s ease-out forwards;
+        `;
+        document.body.appendChild(ripple);
+        setTimeout(() => ripple.remove(), 400);
+      });
+
       const style = document.createElement('style');
       style.textContent = `
-        @keyframes rippleExpand {
+        @keyframes ripple {
           0% { transform: scale(0.5); opacity: 1; }
-          100% { transform: scale(3); opacity: 0; }
+          100% { transform: scale(4); opacity: 0; }
         }
       `;
       document.head.appendChild(style);
-      
-      document.addEventListener('mousemove', (e) => {
-        const dot = document.createElement('div');
-        dot.style.cssText = `
-          position: fixed;
-          width: 20px;
-          height: 20px;
-          background: radial-gradient(circle, #00FFFF 0%, transparent 70%);
-          border-radius: 50%;
-          pointer-events: none;
-          z-index: 8;
-          left: ${e.clientX - 10}px;
-          top: ${e.clientY - 10}px;
-          animation: dotFade 0.5s ease-out forwards;
-        `;
-        document.body.appendChild(dot);
-        setTimeout(() => dot.remove(), 500);
-      });
-      
-      const dotStyle = document.createElement('style');
-      dotStyle.textContent = `
-        @keyframes dotFade {
-          0% { transform: scale(1); opacity: 1; }
-          100% { transform: scale(2); opacity: 0; }
-        }
-      `;
-      document.head.appendChild(dotStyle);
     </script>
   </body>
 </html>
