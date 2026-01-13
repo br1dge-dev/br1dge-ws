@@ -9,70 +9,44 @@
     <title>br1dge.xyz</title>
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      body { 
-        background: #050505; 
-        overflow: hidden; 
+      
+      body {
+        background: #0a0a0a;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
       }
-      canvas { 
-        display: block; 
+
+      .grid {
+        position: fixed;
+        inset: 0;
+        background-image: 
+          linear-gradient(to right, #1a1a1a 1px, transparent 1px),
+          linear-gradient(to bottom, #1a1a1a 1px, transparent 1px);
+        background-size: 100px 100px;
+        opacity: 1;
+      }
+
+      .logo {
+        position: relative;
+        width: 300px;
+        height: auto;
+        z-index: 10;
+      }
+
+      .logo img {
+        width: 100%;
+        height: auto;
+        display: block;
       }
     </style>
   </head>
   <body>
-    <canvas id="c"></canvas>
-
-    <script>
-      const c = document.getElementById('c');
-      const ctx = c.getContext('2d');
-
-      const size = 100; // Grid size
-      let width, height;
-
-      function resize() {
-        width = c.width = window.innerWidth;
-        height = c.height = window.innerHeight;
-        draw();
-      }
-
-      function draw() {
-        ctx.fillStyle = '#050505';
-        ctx.fillRect(0, 0, width, height);
-
-        // Brutalist grid - bold, high contrast
-        ctx.strokeStyle = '#1a1a1a';
-        ctx.lineWidth = 1;
-
-        // Vertical lines
-        for (let x = 0; x <= width; x += size) {
-          ctx.beginPath();
-          ctx.moveTo(x, 0);
-          ctx.lineTo(x, height);
-          ctx.stroke();
-        }
-        
-        // Horizontal lines  
-        for (let y = 0; y <= height; y += size) {
-          ctx.beginPath();
-          ctx.moveTo(0, y);
-          ctx.lineTo(width, y);
-          ctx.stroke();
-        }
-
-        // Bridge - absolutely centered on viewport
-        ctx.fillStyle = '#E5E5E5';
-        ctx.font = 'bold 280px system-ui, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        
-        // Center of viewport
-        const cx = width / 2;
-        const cy = height / 2;
-        
-        ctx.fillText('͆', cx, cy);
-      }
-
-      window.addEventListener('resize', resize);
-      resize();
-    </script>
+    <div class="grid"></div>
+    <div class="logo">
+      <img src="/bridge-logo.png" alt="br1dge logo" />
+    </div>
   </body>
 </html>
