@@ -396,7 +396,7 @@
         bgMusicStarted: false,
         
         async loadBgMusic() {
-          if (this.bgMusic) return;
+          if (this.bgMusic || !this.initialized || !this.ctx) return;
           try {
             const response = await fetch('/bg-music.mp3');
             const arrayBuffer = await response.arrayBuffer();
@@ -406,8 +406,12 @@
           }
         },
         
-        startBgMusic() {
-          if (!this.initialized || this.muted || this.bgMusicStarted || !this.bgMusic) return;
+        async startBgMusic() {
+          if (!this.initialized || this.muted || this.bgMusicStarted) return;
+          if (!this.bgMusic) {
+            await this.loadBgMusic();
+            if (!this.bgMusic) return;
+          }
           this.bgMusicStarted = true;
           
           const source = this.ctx.createBufferSource();
@@ -983,10 +987,7 @@
               HapticManager.collect();
             }
             
-            // Preload background music on first energy collect
-            if (prevEnergy === 0 && cursorEnergy > 0) {
-              AudioSystem.loadBgMusic();
-            }
+
             
             // Wenn gerade voll geworden, Red Particle spawnen (einmalig pro Ladung)
             if (cursorEnergy >= MAX_ENERGY && !redParticle.active && !redParticleActive) {
