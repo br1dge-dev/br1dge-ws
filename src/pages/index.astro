@@ -116,10 +116,12 @@
         const btn = document.createElement('button');
         btn.id = 'restart-overlay-btn';
         btn.textContent = 'RESTART';
+        // Offset basiert auf Logo-Größe bei Level 10
+        const buttonOffset = Math.min(W, H) * 0.18 * logoBaseScale;
         btn.style.cssText = `
           position: fixed;
           left: 50%;
-          top: calc(50% + ${Math.min(W, H) * 0.18}px);
+          top: calc(50% + ${buttonOffset}px);
           transform: translateX(-50%);
           background: transparent;
           border: 1px solid rgba(255,255,255,0.2);
@@ -284,11 +286,11 @@
         }
       }
       
-      // Draw the logo - CLEAN, MINIMAL, CENTERED
+      // Draw the logo - CLEAN, MINIMAL, ALWAYS CENTERED
       function drawLogo() {
         const time = Date.now() / 1000;
+        // Feste Basis-Schriftgröße - Skalierung nur über ctx.scale()
         const baseLogoSize = Math.min(W, H) * 0.32;
-        const logoSize = baseLogoSize * logoBaseScale;
         
         logoScale += (logoTargetScale - logoScale) * 0.12;
         logoGlow *= 0.9;
@@ -300,14 +302,18 @@
         const breath3 = Math.sin(logoBreathPhase * 0.5) * 0.005; // Langwelle
         const breathScale = 1 + breath1 + breath2 + breath3;
         
+        // Gesamtskalierung: Base + Upgrades + Breath + Animation
+        const totalScale = logoBaseScale * logoScale * breathScale;
+        
         const exactCenterX = W / 2;
         const exactCenterY = H / 2;
         
         ctx.save();
         ctx.translate(exactCenterX, exactCenterY);
-        ctx.scale(logoScale * breathScale, logoScale * breathScale);
+        ctx.scale(totalScale, totalScale);
         
-        ctx.font = `200 ${logoSize}px "SF Pro Display", "Helvetica Neue", system-ui, sans-serif`;
+        // Feste Schriftgröße - Skalierung passiert über ctx.scale()
+        ctx.font = `200 ${baseLogoSize}px "SF Pro Display", "Helvetica Neue", system-ui, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         
@@ -356,7 +362,7 @@
         ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
         ctx.fillText(`lvl:${upgradeLevel}`, W - 20, H - 20);
         
-        // Expanding Rings bei Entladung - mit Farbe
+        // Expanding Rings bei Entladung - mit Farbe (immer zentriert)
         for (let i = logoOutlines.length - 1; i >= 0; i--) {
           const outline = logoOutlines[i];
           outline.alpha *= 0.96;
@@ -368,7 +374,8 @@
           }
           
           ctx.beginPath();
-          ctx.arc(exactCenterX, exactCenterY, outline.radius * logoScale, 0, Math.PI * 2);
+          // Ringe skalieren mit logoBaseScale für konsistente Größe
+          ctx.arc(exactCenterX, exactCenterY, outline.radius * logoBaseScale, 0, Math.PI * 2);
           ctx.strokeStyle = outline.hue !== undefined
             ? `hsla(${outline.hue}, 100%, 70%, ${outline.alpha})`
             : `rgba(255, 255, 255, ${outline.alpha})`;
