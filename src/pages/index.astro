@@ -150,8 +150,6 @@
         compressor: null,
         initialized: false,
         muted: false,
-        ambientStarted: false,
-        ambientNodes: [],
         
         init() {
           if (this.initialized) return;
@@ -191,9 +189,11 @@
           return this.muted;
         },
         
-        // --- SFX GENERATORS ---
+        // --- SFX GENERATORS (tuned to G minor) ---
+        // G minor scale: G, A, Bb, C, D, Eb, F
+        // Key frequencies: G3=196, Bb3=233, D4=294, G4=392, Bb4=466, D5=587, G5=784
         
-        // Energy collect - quick ascending blip
+        // Energy collect - quick ascending blip (G minor)
         playCollect(pitch = 0) {
           if (!this.initialized || this.muted) return;
           const osc = this.ctx.createOscillator();
@@ -202,19 +202,21 @@
           osc.connect(gain);
           gain.connect(this.masterGain);
           
-          const baseFreq = 600 + pitch * 100;
+          // G minor notes: D5, G5 range
+          const gMinorNotes = [587, 659, 784, 880, 987]; // D5, F5, G5, A5, Bb5
+          const baseFreq = gMinorNotes[Math.min(pitch, gMinorNotes.length - 1)];
           osc.type = 'sine';
           osc.frequency.setValueAtTime(baseFreq, this.ctx.currentTime);
-          osc.frequency.linearRampToValueAtTime(baseFreq * 1.2, this.ctx.currentTime + 0.05);
+          osc.frequency.linearRampToValueAtTime(baseFreq * 1.12, this.ctx.currentTime + 0.05);
           
-          gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+          gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
           gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.08);
           
           osc.start(this.ctx.currentTime);
           osc.stop(this.ctx.currentTime + 0.1);
         },
         
-        // Red particle capture - deep thump
+        // Red particle capture - deep thump (G bass)
         playCapture() {
           if (!this.initialized || this.muted) return;
           const osc = this.ctx.createOscillator();
@@ -224,8 +226,9 @@
           gain.connect(this.masterGain);
           
           osc.type = 'sine';
-          osc.frequency.setValueAtTime(150, this.ctx.currentTime);
-          osc.frequency.exponentialRampToValueAtTime(60, this.ctx.currentTime + 0.15);
+          // G2 (98Hz) to G1 (49Hz)
+          osc.frequency.setValueAtTime(98, this.ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(49, this.ctx.currentTime + 0.15);
           
           gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
           gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.2);
@@ -237,20 +240,21 @@
           this.playNoiseBurst(0.1, 800);
         },
         
-        // Discharge - impact burst
+        // Discharge - impact burst (G bass)
         playDischarge(level = 1) {
           if (!this.initialized || this.muted) return;
           const now = this.ctx.currentTime;
           
-          // Low sine thump
+          // Low G sine thump
           const osc = this.ctx.createOscillator();
           const gain = this.ctx.createGain();
           osc.connect(gain);
           gain.connect(this.masterGain);
           
           osc.type = 'sine';
-          osc.frequency.setValueAtTime(80 + level * 10, now);
-          osc.frequency.exponentialRampToValueAtTime(40, now + 0.2);
+          // G2 (98Hz) based
+          osc.frequency.setValueAtTime(98 + level * 5, now);
+          osc.frequency.exponentialRampToValueAtTime(49, now + 0.2);
           
           gain.gain.setValueAtTime(0.35, now);
           gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
@@ -262,38 +266,39 @@
           this.playNoiseBurst(0.15, 600 + level * 50);
         },
         
-        // Level up - ascending chime
+        // Level up - ascending chime (G minor arpeggio)
         playLevelUp(level = 1) {
           if (!this.initialized || this.muted) return;
           const now = this.ctx.currentTime;
-          const baseFreq = 400 + level * 20;
           
-          // Arpeggio: 3 notes ascending
-          [0, 0.08, 0.16].forEach((delay, i) => {
+          // G minor arpeggio: G4, Bb4, D5
+          const arpeggio = [392, 466, 587]; // G4, Bb4, D5
+          
+          arpeggio.forEach((freq, i) => {
             const osc = this.ctx.createOscillator();
             const gain = this.ctx.createGain();
             osc.connect(gain);
             gain.connect(this.masterGain);
             
             osc.type = 'triangle';
-            osc.frequency.setValueAtTime(baseFreq * (1 + i * 0.25), now + delay);
+            osc.frequency.setValueAtTime(freq, now + i * 0.08);
             
-            gain.gain.setValueAtTime(0, now + delay);
-            gain.gain.linearRampToValueAtTime(0.25, now + delay + 0.02);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.25);
+            gain.gain.setValueAtTime(0, now + i * 0.08);
+            gain.gain.linearRampToValueAtTime(0.2, now + i * 0.08 + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.08 + 0.25);
             
-            osc.start(now + delay);
-            osc.stop(now + delay + 0.3);
+            osc.start(now + i * 0.08);
+            osc.stop(now + i * 0.08 + 0.3);
           });
         },
         
-        // Max stack - triumphant chord
+        // Max stack - triumphant chord (G minor)
         playMaxStack() {
           if (!this.initialized || this.muted) return;
           const now = this.ctx.currentTime;
           
-          // C major chord: C4, E4, G4, C5
-          const freqs = [261.63, 329.63, 392.00, 523.25];
+          // G minor chord: G3, Bb3, D4, G4
+          const freqs = [196, 233, 294, 392];
           freqs.forEach((freq, i) => {
             const osc = this.ctx.createOscillator();
             const gain = this.ctx.createGain();
@@ -304,8 +309,8 @@
             osc.frequency.setValueAtTime(freq, now);
             
             gain.gain.setValueAtTime(0, now);
-            gain.gain.linearRampToValueAtTime(0.2, now + 0.05);
-            gain.gain.setValueAtTime(0.2, now + 0.3);
+            gain.gain.linearRampToValueAtTime(0.18, now + 0.05);
+            gain.gain.setValueAtTime(0.18, now + 0.3);
             gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
             
             osc.start(now);
@@ -313,7 +318,7 @@
           });
         },
         
-        // Modal enter - gentle ding
+        // Modal enter - gentle ding (G5)
         playModalEnter() {
           if (!this.initialized || this.muted) return;
           const now = this.ctx.currentTime;
@@ -324,17 +329,17 @@
           gain.connect(this.masterGain);
           
           osc.type = 'sine';
-          osc.frequency.setValueAtTime(880, now);
+          osc.frequency.setValueAtTime(784, now); // G5
           
           gain.gain.setValueAtTime(0, now);
-          gain.gain.linearRampToValueAtTime(0.25, now + 0.02);
+          gain.gain.linearRampToValueAtTime(0.2, now + 0.02);
           gain.gain.exponentialRampToValueAtTime(0.001, now + 1.0);
           
           osc.start(now);
           osc.stop(now + 1.1);
         },
         
-        // Modal close - descending tone
+        // Modal close - descending tone (D5 to G4)
         playModalClose() {
           if (!this.initialized || this.muted) return;
           const now = this.ctx.currentTime;
@@ -345,10 +350,10 @@
           gain.connect(this.masterGain);
           
           osc.type = 'sine';
-          osc.frequency.setValueAtTime(660, now);
-          osc.frequency.exponentialRampToValueAtTime(330, now + 0.3);
+          osc.frequency.setValueAtTime(587, now); // D5
+          osc.frequency.exponentialRampToValueAtTime(392, now + 0.3); // G4
           
-          gain.gain.setValueAtTime(0.2, now);
+          gain.gain.setValueAtTime(0.18, now);
           gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
           
           osc.start(now);
@@ -385,58 +390,53 @@
           noise.start(now);
         },
         
-        // --- AMBIENT DRONE ---
+        // --- BACKGROUND MUSIC (MP3) ---
+        bgMusic: null,
+        bgMusicGain: null,
+        bgMusicStarted: false,
         
-        startAmbient() {
-          if (!this.initialized || this.muted || this.ambientStarted) return;
-          this.ambientStarted = true;
-          
-          // Two slightly detuned sine waves for "beating" effect
-          const freqs = [110, 110.5]; // A2 with slight detune
-          
-          freqs.forEach(freq => {
-            const osc = this.ctx.createOscillator();
-            const gain = this.ctx.createGain();
-            
-            osc.connect(gain);
-            gain.connect(this.masterGain);
-            
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
-            
-            // Very quiet
-            gain.gain.setValueAtTime(0, this.ctx.currentTime);
-            gain.gain.linearRampToValueAtTime(0.04, this.ctx.currentTime + 2);
-            
-            osc.start(this.ctx.currentTime);
-            
-            this.ambientNodes.push({ osc, gain });
-          });
-          
-          // Add subtle harmonic
-          const harmOsc = this.ctx.createOscillator();
-          const harmGain = this.ctx.createGain();
-          harmOsc.connect(harmGain);
-          harmGain.connect(this.masterGain);
-          harmOsc.type = 'sine';
-          harmOsc.frequency.setValueAtTime(220, this.ctx.currentTime);
-          harmGain.gain.setValueAtTime(0, this.ctx.currentTime);
-          harmGain.gain.linearRampToValueAtTime(0.015, this.ctx.currentTime + 3);
-          harmOsc.start(this.ctx.currentTime);
-          this.ambientNodes.push({ osc: harmOsc, gain: harmGain });
+        async loadBgMusic() {
+          if (this.bgMusic) return;
+          try {
+            const response = await fetch('/bg-music.mp3');
+            const arrayBuffer = await response.arrayBuffer();
+            this.bgMusic = await this.ctx.decodeAudioData(arrayBuffer);
+          } catch (e) {
+            console.warn('Failed to load background music:', e);
+          }
         },
         
-        stopAmbient() {
-          if (!this.ambientStarted) return;
+        startBgMusic() {
+          if (!this.initialized || this.muted || this.bgMusicStarted || !this.bgMusic) return;
+          this.bgMusicStarted = true;
+          
+          const source = this.ctx.createBufferSource();
+          this.bgMusicGain = this.ctx.createGain();
+          
+          source.buffer = this.bgMusic;
+          source.loop = true;
+          source.connect(this.bgMusicGain);
+          this.bgMusicGain.connect(this.masterGain);
+          
+          // Fade in
+          this.bgMusicGain.gain.setValueAtTime(0, this.ctx.currentTime);
+          this.bgMusicGain.gain.linearRampToValueAtTime(0.25, this.ctx.currentTime + 2);
+          
+          source.start(0);
+          this.bgMusicSource = source;
+        },
+        
+        stopBgMusic() {
+          if (!this.bgMusicStarted || !this.bgMusicSource) return;
           const now = this.ctx.currentTime;
           
-          this.ambientNodes.forEach(({ osc, gain }) => {
-            gain.gain.linearRampToValueAtTime(0, now + 1);
-            osc.stop(now + 1.1);
-          });
-          
-          this.ambientNodes = [];
-          this.ambientStarted = false;
+          this.bgMusicGain.gain.linearRampToValueAtTime(0, now + 1);
+          setTimeout(() => {
+            try {
+              this.bgMusicSource.stop();
+            } catch(e) {}
+            this.bgMusicStarted = false;
+          }, 1100);
         }
       };
       
@@ -475,16 +475,12 @@
       document.addEventListener('click', initAudioOnInteraction, { once: false });
       document.addEventListener('touchstart', initAudioOnInteraction, { once: false });
       
-      // Pause audio when tab is hidden
+      // Pause/resume background music when tab visibility changes
       document.addEventListener('visibilitychange', () => {
-        if (document.hidden && AudioSystem.ambientStarted) {
-          AudioSystem.ambientNodes.forEach(({ gain }) => {
-            gain.gain.linearRampToValueAtTime(0, AudioSystem.ctx.currentTime + 0.5);
-          });
-        } else if (!document.hidden && AudioSystem.ambientStarted && !AudioSystem.muted) {
-          AudioSystem.ambientNodes.forEach(({ gain }) => {
-            gain.gain.linearRampToValueAtTime(0.04, AudioSystem.ctx.currentTime + 0.5);
-          });
+        if (document.hidden && AudioSystem.bgMusicStarted && AudioSystem.bgMusicGain) {
+          AudioSystem.bgMusicGain.gain.linearRampToValueAtTime(0, AudioSystem.ctx.currentTime + 0.5);
+        } else if (!document.hidden && AudioSystem.bgMusicStarted && !AudioSystem.muted && AudioSystem.bgMusicGain) {
+          AudioSystem.bgMusicGain.gain.linearRampToValueAtTime(0.25, AudioSystem.ctx.currentTime + 0.5);
         }
       });
       
@@ -987,9 +983,9 @@
               HapticManager.collect();
             }
             
-            // Start ambient on first energy collect
+            // Preload background music on first energy collect
             if (prevEnergy === 0 && cursorEnergy > 0) {
-              AudioSystem.startAmbient();
+              AudioSystem.loadBgMusic();
             }
             
             // Wenn gerade voll geworden, Red Particle spawnen (einmalig pro Ladung)
@@ -1390,8 +1386,10 @@
           }
           redStackCount = 0;
           
-          // Stop ambient after discharge (energy is 0)
-          AudioSystem.stopAmbient();
+          // Start background music on first discharge (with at least 20% charge)
+          if (!AudioSystem.bgMusicStarted && cursorEnergy >= ENERGY_THRESHOLD) {
+            AudioSystem.startBgMusic();
+          }
           
           const intensity = cursorEnergy;
           const releaseHue = isMaxStack ? 45 : (upgradeLevel * 40) % 360; // Gold bei max stack
@@ -1538,8 +1536,10 @@
             }
             redStackCount = 0;
             
-            // Stop ambient after discharge
-            AudioSystem.stopAmbient();
+            // Start background music on first discharge (touch)
+            if (!AudioSystem.bgMusicStarted && cursorEnergy >= ENERGY_THRESHOLD) {
+              AudioSystem.startBgMusic();
+            }
             
             const intensity = cursorEnergy;
             const releaseHue = isMaxStack ? 45 : (upgradeLevel * 50) % 360;
@@ -1664,11 +1664,11 @@
           hideSoundHint();
         }
         
-        // Stop/start ambient
+        // Stop/start background music
         if (muted) {
-          AudioSystem.stopAmbient();
-        } else if (cursorEnergy > 0) {
-          AudioSystem.startAmbient();
+          AudioSystem.stopBgMusic();
+        } else if (AudioSystem.bgMusic && !AudioSystem.bgMusicStarted) {
+          AudioSystem.startBgMusic();
         }
       });
       
