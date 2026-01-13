@@ -5,223 +5,467 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>br1dge.xyz</title>
     <style>
-      * { 
-        margin: 0; 
-        padding: 0; 
-        box-sizing: border-box; 
-        cursor: none;
-      }
-      
-      html, body {
-        height: 100%;
-        width: 100%;
-        overflow: hidden;
-        background: #000;
-      }
-
-      #canvas {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-      }
+      * { margin: 0; padding: 0; box-sizing: border-box; cursor: none; }
+      html, body { height: 100%; width: 100%; overflow: hidden; background: #000; }
+      #canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; }
     </style>
   </head>
   <body>
     <canvas id="canvas"></canvas>
-
     <script>
       const canvas = document.getElementById('canvas');
       const ctx = canvas.getContext('2d');
       
-      let width, height;
+      let W, H, centerX, centerY;
       let mouseX = 0, mouseY = 0;
-      let targetX = 0, targetY = 0;
-      let logoHovered = false;
-      let clickRipples = [];
-      let pulsePhase = 0;
+      let cursorX = 0, cursorY = 0;
       
-      const gridSize = 80;
-      const bits = [];
+      // Logo state
+      let logoScale = 1;
+      let logoTargetScale = 1;
+      let logoBaseScale = 1; // Wächst permanent mit jedem Upgrade
+      let logoGlow = 0;
+      let upgradeLevel = 0; // Anzahl der Upgrades
       
-      // Resize
+      // Logo Energie-Ringe (akkumulierte Energie-Releases)
+      const logoOutlines = [];
+      
+      // Cursor energy (von Partikeln gesammelt)
+      let cursorEnergy = 0;
+      const ENERGY_THRESHOLD = 0.2;
+      const MAX_ENERGY = 1.0;
+      
+      // Red particle state
+      let redParticleActive = false;
+      let redParticleSpawnTime = 0;
+      let isInverted = false;
+      const redParticle = { x: 0, y: 0, vx: 0, vy: 0, active: false };
+      
+      // Particles
+      const particles = [];
+      
+      // Ripples
+      const ripples = [];
+      
+      // Ambient floating particles
+      const ambientParticles = [];
+      
       function resize() {
-        width = canvas.width = window.innerWidth;
-        height = canvas.height = window.innerHeight;
-        initBits();
+        W = canvas.width = window.innerWidth;
+        H = canvas.height = window.innerHeight;
+        centerX = W / 2;
+        centerY = H / 2;
       }
       
-      // Initialize bits along grid
-      function initBits() {
-        bits.length = 0;
-        
-        // Horizontal bits
-        for (let y = gridSize; y < height; y += gridSize) {
-          for (let i = 0; i < 5; i++) {
-            bits.push({
-              x: Math.random() * width,
-              y: y,
-              speed: 0.3 + Math.random() * 0.5,
-              axis: 'h',
-              baseY: y
-            });
-          }
-        }
-        
-        // Vertical bits
-        for (let x = gridSize; x < width; x += gridSize) {
-          for (let i = 0; i < 5; i++) {
-            bits.push({
-              x: x,
-              y: Math.random() * height,
-              speed: 0.3 + Math.random() * 0.5,
-              axis: 'v',
-              baseX: x
-            });
-          }
-        }
+      // Distance from logo (Logo ist IMMER in der Mitte)
+      function distFromLogo(x, y) {
+        const dx = x - centerX;
+        const dy = y - centerY;
+        return Math.sqrt(dx * dx + dy * dy);
       }
       
-      // Draw grid
+      // 2026 Minimal Background - Clean, Dark, Sophisticated
       function drawGrid() {
-        ctx.strokeStyle = '#151515';
-        ctx.lineWidth = 1;
+        const time = Date.now() / 1000;
         
-        for (let x = 0; x <= width; x += gridSize) {
+        // Pure black with subtle depth
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, W, H);
+        
+        // Sehr subtiler radialer Gradient - kaum sichtbar
+        const subtleGradient = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, Math.max(W, H) * 0.7);
+        subtleGradient.addColorStop(0, 'rgba(20, 20, 25, 0.5)');
+        subtleGradient.addColorStop(1, 'transparent');
+        ctx.fillStyle = subtleGradient;
+        ctx.fillRect(0, 0, W, H);
+        
+        // Minimales Dot-Grid statt Linien (moderner)
+        const dotSpacing = 80;
+        const dotSize = 1;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
+        
+        for (let x = dotSpacing; x < W; x += dotSpacing) {
+          for (let y = dotSpacing; y < H; y += dotSpacing) {
+            ctx.beginPath();
+            ctx.arc(x, y, dotSize, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        
+        // Subtile vertikale Linien (sehr dünn, sehr transparent)
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.015)';
+        ctx.lineWidth = 1;
+        for (let x = 0; x < W; x += 200) {
           ctx.beginPath();
           ctx.moveTo(x, 0);
-          ctx.lineTo(x, height);
-          ctx.stroke();
-        }
-        
-        for (let y = 0; y <= height; y += gridSize) {
-          ctx.beginPath();
-          ctx.moveTo(0, y);
-          ctx.lineTo(width, y);
+          ctx.lineTo(x, H);
           ctx.stroke();
         }
       }
       
-      // Draw animated bits
-      function drawBits() {
-        bits.forEach(bit => {
-          if (bit.axis === 'h') {
-            bit.x += bit.speed;
-            if (bit.x > width) bit.x = 0;
-          } else {
-            bit.y += bit.speed;
-            if (bit.y > height) bit.y = 0;
-          }
-          
-          // Calculate fade based on position
-          let fade;
-          if (bit.axis === 'h') {
-            fade = Math.sin((bit.x / width) * Math.PI) * 0.4;
-          } else {
-            fade = Math.sin((bit.y / height) * Math.PI) * 0.4;
-          }
-          
-          ctx.beginPath();
-          ctx.arc(bit.x, bit.y, 2, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(0, 255, 255, ${fade})`;
-          ctx.fill();
-        });
-      }
-      
-      // Draw logo - PERFECTLY CENTERED
+      // Draw the logo - CLEAN, MINIMAL, CENTERED
       function drawLogo() {
-        const centerX = width / 2;
-        const centerY = height / 2;
+        const time = Date.now() / 1000;
+        const baseLogoSize = Math.min(W, H) * 0.22;
+        const logoSize = baseLogoSize * logoBaseScale;
         
-        // Logo size
-        const size = Math.min(width, height) * 0.4;
+        logoScale += (logoTargetScale - logoScale) * 0.12;
+        logoGlow *= 0.9;
         
-        // Check hover
-        const dx = mouseX - centerX;
-        const dy = mouseY - centerY;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        logoHovered = dist < size * 0.4;
-        
-        // Pulse effect
-        pulsePhase += 0.02;
-        const pulse = logoHovered ? 1 + Math.sin(pulsePhase * 3) * 0.03 : 1;
-        
-        // Color cycle
-        const hue = (Date.now() / 50) % 360;
-        const color = logoHovered 
-          ? `hsl(${hue}, 100%, 70%)` 
-          : '#E5E5E5';
+        const exactCenterX = W / 2;
+        const exactCenterY = H / 2;
         
         ctx.save();
-        ctx.translate(centerX, centerY);
-        ctx.scale(pulse, pulse);
+        ctx.translate(exactCenterX, exactCenterY);
+        ctx.scale(logoScale, logoScale);
         
-        // Draw bridge symbol
-        ctx.font = `bold ${size}px system-ui, sans-serif`;
+        ctx.font = `200 ${logoSize}px "SF Pro Display", "Helvetica Neue", system-ui, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillStyle = color;
-        ctx.fillText('͆', 0, 0);
+        
+        // Haupt-Symbol - weiß
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText('∩', 0, 0);
+        
+        ctx.restore();
+        
+        // Expanding Rings bei Entladung - mit Farbe
+        for (let i = logoOutlines.length - 1; i >= 0; i--) {
+          const outline = logoOutlines[i];
+          outline.alpha *= 0.96;
+          outline.radius = (outline.radius || 10) + 5;
+          
+          if (outline.alpha < 0.01) {
+            logoOutlines.splice(i, 1);
+            continue;
+          }
+          
+          ctx.beginPath();
+          ctx.arc(exactCenterX, exactCenterY, outline.radius * logoScale, 0, Math.PI * 2);
+          ctx.strokeStyle = outline.hue !== undefined
+            ? `hsla(${outline.hue}, 100%, 70%, ${outline.alpha})`
+            : `rgba(255, 255, 255, ${outline.alpha})`;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+      }
+      
+      // Draw particles - CLEAN
+      function drawParticles() {
+        for (let i = particles.length - 1; i >= 0; i--) {
+          const p = particles[i];
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vx *= 0.96;
+          p.vy *= 0.96;
+          p.life -= 0.02;
+          
+          if (p.life <= 0) {
+            particles.splice(i, 1);
+            continue;
+          }
+          
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
+          ctx.fillStyle = p.hue 
+            ? `hsla(${p.hue}, 100%, 70%, ${p.life})`
+            : `rgba(255, 255, 255, ${p.life})`;
+          ctx.fill();
+        }
+      }
+      
+      // Ambient floating particles - CURSOR Gravitation
+      function drawAmbientParticles() {
+        const time = Date.now() / 1000;
+        
+        // VIELE Partikel spawnen - von allen Seiten UND im Bildschirm
+        const maxParticles = 150;
+        const spawnRate = 0.4; // Höhere Spawn-Rate
+        
+        if (ambientParticles.length < maxParticles && Math.random() < spawnRate) {
+          let x, y, vx, vy;
+          
+          // 70% von den Rändern, 30% zufällig im Bildschirm
+          if (Math.random() < 0.7) {
+            // Von Rändern
+            const edge = Math.floor(Math.random() * 4);
+            switch(edge) {
+              case 0: x = Math.random() * W; y = -10; vx = (Math.random() - 0.5) * 0.5; vy = 0.5 + Math.random() * 0.5; break;
+              case 1: x = W + 10; y = Math.random() * H; vx = -(0.5 + Math.random() * 0.5); vy = (Math.random() - 0.5) * 0.5; break;
+              case 2: x = Math.random() * W; y = H + 10; vx = (Math.random() - 0.5) * 0.5; vy = -(0.5 + Math.random() * 0.5); break;
+              default: x = -10; y = Math.random() * H; vx = 0.5 + Math.random() * 0.5; vy = (Math.random() - 0.5) * 0.5;
+            }
+          } else {
+            // Zufällig im sichtbaren Bereich (aber nicht zu nah am Cursor)
+            x = Math.random() * W;
+            y = Math.random() * H;
+            // Kleine zufällige Drift
+            vx = (Math.random() - 0.5) * 0.3;
+            vy = (Math.random() - 0.5) * 0.3;
+          }
+          
+          ambientParticles.push({
+            x, y, vx, vy,
+            size: 1.5 + Math.random() * 3,
+            alpha: 0.5 + Math.random() * 0.4,
+            twinkle: Math.random() * Math.PI * 2,
+            absorbed: false
+          });
+        }
+        
+        // Draw and update particles
+        for (let i = ambientParticles.length - 1; i >= 0; i--) {
+          const p = ambientParticles[i];
+          
+          // CURSOR Gravitation - STÄRKER
+          const dx = cursorX - p.x;
+          const dy = cursorY - p.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          const gravityRadius = 280; // Größere Reichweite
+          
+          if (dist < gravityRadius && dist > 8) {
+            // Gravitation: quadratisch stärker je näher
+            const normalizedDist = dist / gravityRadius;
+            const pullStrength = Math.pow(1 - normalizedDist, 2) * 0.15;
+            p.vx += (dx / dist) * pullStrength;
+            p.vy += (dy / dist) * pullStrength;
+            
+            // Partikel beschleunigt sichtbar zum Cursor
+            if (dist < 100) {
+              p.vx += (dx / dist) * 0.08;
+              p.vy += (dy / dist) * 0.08;
+            }
+          }
+          
+          // Partikel wird vom Cursor absorbiert - nur wenn nicht voll
+          if (dist < 20 && !p.absorbed && cursorEnergy < MAX_ENERGY) {
+            p.absorbed = true;
+            cursorEnergy = Math.min(MAX_ENERGY, cursorEnergy + 0.008);
+            p.alpha *= 0.2;
+            
+            // Wenn gerade voll geworden, Red Particle Timer starten
+            if (cursorEnergy >= MAX_ENERGY && !redParticleActive && !redParticle.active) {
+              redParticleSpawnTime = Date.now() + 2000; // 2 Sekunden warten
+              redParticleActive = true;
+            }
+          }
+          
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vx *= 0.985;
+          p.vy *= 0.985;
+          p.twinkle += 0.05;
+          
+          if (p.absorbed) {
+            p.alpha *= 0.8;
+          }
+          
+          // Remove
+          if (p.x < -50 || p.x > W + 50 || p.y < -50 || p.y > H + 50 || p.alpha < 0.01) {
+            ambientParticles.splice(i, 1);
+            continue;
+          }
+          
+          const twinkleAlpha = p.alpha * (0.7 + Math.sin(p.twinkle) * 0.3);
+          
+          // Cleaner look - nur weiß mit Intensitätsvariation
+          let alpha = twinkleAlpha;
+          if (dist < gravityRadius && !p.absorbed) {
+            // Heller wenn nah am Cursor
+            alpha = twinkleAlpha * (1 + (1 - dist / gravityRadius) * 0.5);
+          }
+          
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size * (p.absorbed ? 0.3 : 1), 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(255, 255, 255, ${Math.min(1, alpha)})`;
+          ctx.fill();
+        }
+      }
+      
+
+      
+      // Red Particle - spawnt nach voller Ladung
+      function drawRedParticle() {
+        // Spawn nach Timer
+        if (redParticleActive && !redParticle.active && Date.now() > redParticleSpawnTime) {
+          // Von zufälliger Kante spawnen
+          const edge = Math.floor(Math.random() * 4);
+          const speed = 4 + Math.random() * 3;
+          switch(edge) {
+            case 0: redParticle.x = Math.random() * W; redParticle.y = -10; redParticle.vx = (Math.random() - 0.5) * 2; redParticle.vy = speed; break;
+            case 1: redParticle.x = W + 10; redParticle.y = Math.random() * H; redParticle.vx = -speed; redParticle.vy = (Math.random() - 0.5) * 2; break;
+            case 2: redParticle.x = Math.random() * W; redParticle.y = H + 10; redParticle.vx = (Math.random() - 0.5) * 2; redParticle.vy = -speed; break;
+            default: redParticle.x = -10; redParticle.y = Math.random() * H; redParticle.vx = speed; redParticle.vy = (Math.random() - 0.5) * 2;
+          }
+          redParticle.active = true;
+        }
+        
+        if (!redParticle.active) return;
+        
+        // Update position
+        redParticle.x += redParticle.vx;
+        redParticle.y += redParticle.vy;
+        
+        // Check capture by cursor
+        const dx = cursorX - redParticle.x;
+        const dy = cursorY - redParticle.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        if (dist < 25) {
+          // CAPTURED! Invert everything
+          isInverted = !isInverted;
+          redParticle.active = false;
+          redParticleActive = false;
+          
+          // Visual feedback
+          for (let i = 0; i < 30; i++) {
+            const angle = (i / 30) * Math.PI * 2;
+            particles.push({
+              x: redParticle.x,
+              y: redParticle.y,
+              vx: Math.cos(angle) * 8,
+              vy: Math.sin(angle) * 8,
+              life: 1,
+              hue: 0
+            });
+          }
+        }
+        
+        // Remove if off screen
+        if (redParticle.x < -50 || redParticle.x > W + 50 || redParticle.y < -50 || redParticle.y > H + 50) {
+          redParticle.active = false;
+          redParticleActive = false;
+        }
+        
+        // Draw - bright blood red, larger
+        ctx.beginPath();
+        ctx.arc(redParticle.x, redParticle.y, 6, 0, Math.PI * 2);
+        ctx.fillStyle = '#ff1a1a';
+        ctx.fill();
+        
+        // Glow
+        ctx.beginPath();
+        ctx.arc(redParticle.x, redParticle.y, 12, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 26, 26, 0.3)';
+        ctx.fill();
+      }
+      
+      // Minimal overlay - nur subtile Vignette
+      function drawScanlines() {
+        // Elegante Vignette
+        const vignetteGradient = ctx.createRadialGradient(
+          W/2, H/2, Math.min(W, H) * 0.3,
+          W/2, H/2, Math.max(W, H) * 0.8
+        );
+        vignetteGradient.addColorStop(0, 'transparent');
+        vignetteGradient.addColorStop(0.7, 'transparent');
+        vignetteGradient.addColorStop(1, 'rgba(0, 0, 0, 0.5)');
+        ctx.fillStyle = vignetteGradient;
+        ctx.fillRect(0, 0, W, H);
+      }
+      
+      // Draw ripples - mit optionaler Farbe
+      function drawRipples() {
+        for (let i = ripples.length - 1; i >= 0; i--) {
+          const r = ripples[i];
+          r.size += 12;
+          r.alpha -= 0.02;
+          
+          if (r.alpha <= 0) {
+            ripples.splice(i, 1);
+            continue;
+          }
+          
+          ctx.beginPath();
+          ctx.arc(r.x, r.y, r.size, 0, Math.PI * 2);
+          ctx.strokeStyle = r.hue !== undefined 
+            ? `hsla(${r.hue}, 100%, 70%, ${r.alpha})`
+            : `rgba(255, 255, 255, ${r.alpha})`;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+      }
+      
+      // 2026 Cursor - CLEAN, SHARP, SNAPPY
+      function drawCursor() {
+        const time = Date.now() / 1000;
+        
+        const logoX = W / 2;
+        const logoY = H / 2;
+        const dxToLogo = mouseX - logoX;
+        const dyToLogo = mouseY - logoY;
+        const distToLogo = Math.sqrt(dxToLogo * dxToLogo + dyToLogo * dyToLogo);
+        
+        // ANZIEHUNG zum Logo wenn geladen - Cursor wird eingefangen
+        let pullX = 0, pullY = 0;
+        const captureRadius = 180;
+        if (distToLogo < captureRadius && cursorEnergy >= ENERGY_THRESHOLD) {
+          const proximity = 1 - distToLogo / captureRadius;
+          const pullStrength = cursorEnergy * proximity * 0.6;
+          if (distToLogo > 1) {
+            pullX = -(dxToLogo / distToLogo) * pullStrength * distToLogo * 0.3;
+            pullY = -(dyToLogo / distToLogo) * pullStrength * distToLogo * 0.3;
+          }
+        }
+        
+        const targetX = mouseX + pullX;
+        const targetY = mouseY + pullY;
+        // SNAPPY - schnellere Reaktion
+        cursorX += (targetX - cursorX) * 0.25;
+        cursorY += (targetY - cursorY) * 0.25;
+        
+        // Größe
+        const baseSize = 5;
+        const energySize = cursorEnergy * 18;
+        const cursorSize = baseSize + energySize;
+        
+        ctx.save();
+        ctx.translate(cursorX, cursorY);
+        
+        // === POWER METER - Solid Rings, keine Transparenz ===
+        const totalLayers = 5;
+        const energyPerLayer = MAX_ENERGY / totalLayers;
+        
+        for (let layer = 0; layer < totalLayers; layer++) {
+          const layerStart = layer * energyPerLayer;
+          const layerProgress = Math.max(0, Math.min(1, (cursorEnergy - layerStart) / energyPerLayer));
+          if (layerProgress <= 0) continue;
+          
+          const ringRadius = cursorSize + 5 + layer * 5;
+          const ringWidth = 4;
+          
+          ctx.beginPath();
+          ctx.arc(0, 0, ringRadius, -Math.PI/2, -Math.PI/2 + layerProgress * Math.PI * 2);
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = ringWidth;
+          ctx.lineCap = 'butt';
+          ctx.stroke();
+        }
+        
+        // Core - clean, solid
+        ctx.beginPath();
+        ctx.arc(0, 0, cursorSize, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
         
         ctx.restore();
       }
       
-      // Draw cursor
-      function drawCursor() {
-        // Smooth follow
-        targetX += (mouseX - targetX) * 0.15;
-        targetY += (mouseY - targetY) * 0.15;
-        
-        const size = logoHovered ? 40 : 8;
-        const alpha = logoHovered ? 0.3 : 0.8;
-        
-        // Outer ring when hovering
-        if (logoHovered) {
-          ctx.beginPath();
-          ctx.arc(targetX, targetY, size, 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(0, 255, 255, ${alpha})`;
-          ctx.lineWidth = 2;
-          ctx.stroke();
-        }
-        
-        // Inner dot
-        ctx.beginPath();
-        ctx.arc(targetX, targetY, logoHovered ? 4 : 4, 0, Math.PI * 2);
-        ctx.fillStyle = '#fff';
-        ctx.fill();
-      }
-      
-      // Draw click ripples
-      function drawRipples() {
-        clickRipples = clickRipples.filter(r => {
-          r.size += 15;
-          r.alpha -= 0.05;
-          
-          if (r.alpha <= 0) return false;
-          
-          ctx.beginPath();
-          ctx.arc(r.x, r.y, r.size, 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(0, 255, 255, ${r.alpha})`;
-          ctx.lineWidth = 2;
-          ctx.stroke();
-          
-          return true;
-        });
-      }
-      
-      // Main loop
-      function draw() {
+      // Main render
+      function render() {
         ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, width, height);
+        ctx.fillRect(0, 0, W, H);
         
         drawGrid();
-        drawBits();
+        drawAmbientParticles();
+        drawRedParticle();
+        drawParticles();
         drawLogo();
         drawRipples();
         drawCursor();
+        drawScanlines();
         
-        requestAnimationFrame(draw);
+        requestAnimationFrame(render);
       }
       
       // Events
@@ -232,80 +476,190 @@
         mouseY = e.clientY;
       });
       
+      // Click auf Logo = ENERGIE EXPLOSION (nur wenn Threshold erreicht)
       document.addEventListener('click', (e) => {
-        clickRipples.push({
+        const dist = distFromLogo(e.clientX, e.clientY);
+        const logoRadius = Math.min(W, H) * 0.22 * logoBaseScale;
+        const exactCenterX = W / 2;
+        const exactCenterY = H / 2;
+        
+        // Ripple immer
+        ripples.push({
           x: e.clientX,
           y: e.clientY,
-          size: 10,
-          alpha: 1
+          size: 5,
+          alpha: 0.5,
+          hue: 0
         });
         
-        // Burst bits on click
-        for (let i = 0; i < 8; i++) {
-          const angle = (i / 8) * Math.PI * 2;
-          bits.push({
-            x: e.clientX,
-            y: e.clientY,
-            speed: 3 + Math.random() * 2,
-            axis: Math.random() > 0.5 ? 'h' : 'v',
-            baseX: e.clientX,
-            baseY: e.clientY,
-            vx: Math.cos(angle) * 3,
-            vy: Math.sin(angle) * 3,
-            life: 60
-          });
+        // Nur wenn auf Logo geklickt UND Threshold erreicht
+        if (dist < logoRadius && cursorEnergy >= ENERGY_THRESHOLD) {
+          upgradeLevel++;
+          logoBaseScale += 0.05;
+          
+          const intensity = cursorEnergy;
+          const releaseHue = (upgradeLevel * 50) % 360;
+          
+          // Farbige expanding rings
+          const ringCount = 4 + upgradeLevel;
+          for (let o = 0; o < ringCount; o++) {
+            setTimeout(() => {
+              logoOutlines.push({
+                alpha: 1,
+                radius: 15 + o * 8,
+                hue: (releaseHue + o * 20) % 360
+              });
+            }, o * 25);
+          }
+          
+          // Scale punch - stärker
+          logoTargetScale = 1.25;
+          setTimeout(() => { logoTargetScale = 1; }, 120);
+          
+          // DRUCKWELLE - alle ambient particles wegstoßen
+          for (let ap of ambientParticles) {
+            const apDx = ap.x - exactCenterX;
+            const apDy = ap.y - exactCenterY;
+            const apDist = Math.sqrt(apDx * apDx + apDy * apDy);
+            if (apDist > 0 && apDist < 400) {
+              const pushStrength = (1 - apDist / 400) * 15 * intensity;
+              ap.vx += (apDx / apDist) * pushStrength;
+              ap.vy += (apDy / apDist) * pushStrength;
+            }
+          }
+          
+          // Mehr farbige Partikel
+          const particleCount = Math.floor(50 + intensity * 80 + upgradeLevel * 12);
+          for (let i = 0; i < particleCount; i++) {
+            const angle = (i / particleCount) * Math.PI * 2;
+            const speed = 6 + Math.random() * 12 * intensity;
+            particles.push({
+              x: exactCenterX,
+              y: exactCenterY,
+              vx: Math.cos(angle) * speed,
+              vy: Math.sin(angle) * speed,
+              life: 1,
+              hue: (releaseHue + Math.random() * 60) % 360
+            });
+          }
+          
+          // Mehrere Shockwaves
+          for (let s = 0; s < 3; s++) {
+            setTimeout(() => {
+              ripples.push({
+                x: exactCenterX,
+                y: exactCenterY,
+                size: 10 + s * 20,
+                alpha: 1,
+                hue: (releaseHue + s * 30) % 360
+              });
+            }, s * 40);
+          }
+          
+          cursorEnergy = 0;
+          redParticleActive = false;
         }
       });
       
-      // Update bits with burst particles
-      const originalDrawBits = drawBits;
-      function drawBitsWithBurst() {
-        bits.forEach((bit, index) => {
-          if (bit.life !== undefined) {
-            bit.x += bit.vx;
-            bit.y += bit.vy;
-            bit.life--;
+      // Touch support
+      document.addEventListener('touchstart', (e) => {
+        const touch = e.touches[0];
+        mouseX = touch.clientX;
+        mouseY = touch.clientY;
+      });
+      
+      document.addEventListener('touchmove', (e) => {
+        const touch = e.touches[0];
+        mouseX = touch.clientX;
+        mouseY = touch.clientY;
+        e.preventDefault();
+      }, { passive: false });
+      
+      // Touch tap = ENERGIE EXPLOSION (nur wenn Threshold erreicht)
+      document.addEventListener('touchend', (e) => {
+        if (e.changedTouches.length > 0) {
+          const touch = e.changedTouches[0];
+          const dist = distFromLogo(touch.clientX, touch.clientY);
+          const logoRadius = Math.min(W, H) * 0.22 * logoBaseScale;
+          const exactCenterX = W / 2;
+          const exactCenterY = H / 2;
+          
+          ripples.push({
+            x: touch.clientX,
+            y: touch.clientY,
+            size: 5,
+            alpha: 0.5,
+            hue: 0
+          });
+          
+          if (dist < logoRadius && cursorEnergy >= ENERGY_THRESHOLD) {
+            upgradeLevel++;
+            logoBaseScale += 0.05;
             
-            if (bit.life <= 0) {
-              bits.splice(index, 1);
-              return;
+            const intensity = cursorEnergy;
+            const releaseHue = (upgradeLevel * 50) % 360;
+            
+            const ringCount = 4 + upgradeLevel;
+            for (let o = 0; o < ringCount; o++) {
+              setTimeout(() => {
+                logoOutlines.push({
+                  alpha: 1,
+                  radius: 15 + o * 8,
+                  hue: (releaseHue + o * 20) % 360
+                });
+              }, o * 25);
             }
             
-            const fade = bit.life / 60;
-            ctx.beginPath();
-            ctx.arc(bit.x, bit.y, 3, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(255, 0, 255, ${fade})`;
-            ctx.fill();
-          } else {
-            if (bit.axis === 'h') {
-              bit.x += bit.speed;
-              if (bit.x > width) bit.x = 0;
-            } else {
-              bit.y += bit.speed;
-              if (bit.y > height) bit.y = 0;
+            logoTargetScale = 1.25;
+            setTimeout(() => { logoTargetScale = 1; }, 120);
+            
+            // Druckwelle
+            for (let ap of ambientParticles) {
+              const apDx = ap.x - exactCenterX;
+              const apDy = ap.y - exactCenterY;
+              const apDist = Math.sqrt(apDx * apDx + apDy * apDy);
+              if (apDist > 0 && apDist < 400) {
+                const pushStrength = (1 - apDist / 400) * 15 * intensity;
+                ap.vx += (apDx / apDist) * pushStrength;
+                ap.vy += (apDy / apDist) * pushStrength;
+              }
             }
             
-            let fade;
-            if (bit.axis === 'h') {
-              fade = Math.sin((bit.x / width) * Math.PI) * 0.3;
-            } else {
-              fade = Math.sin((bit.y / height) * Math.PI) * 0.3;
+            const particleCount = Math.floor(50 + intensity * 80 + upgradeLevel * 12);
+            for (let i = 0; i < particleCount; i++) {
+              const angle = (i / particleCount) * Math.PI * 2;
+              const speed = 6 + Math.random() * 12 * intensity;
+              particles.push({
+                x: exactCenterX,
+                y: exactCenterY,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                life: 1,
+                hue: (releaseHue + Math.random() * 60) % 360
+              });
             }
             
-            ctx.beginPath();
-            ctx.arc(bit.x, bit.y, 2, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(0, 255, 255, ${fade})`;
-            ctx.fill();
+            for (let s = 0; s < 3; s++) {
+              setTimeout(() => {
+                ripples.push({
+                  x: exactCenterX,
+                  y: exactCenterY,
+                  size: 10 + s * 20,
+                  alpha: 1,
+                  hue: (releaseHue + s * 30) % 360
+                });
+              }, s * 40);
+            }
+            
+            cursorEnergy = 0;
+            redParticleActive = false;
           }
-        });
-      }
+        }
+      });
       
-      // Override
-      drawBits = drawBitsWithBurst;
-      
-      // Start
+      // Init
       resize();
-      draw();
+      render();
     </script>
   </body>
 </html>
