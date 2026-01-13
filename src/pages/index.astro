@@ -26,6 +26,7 @@
       let logoBaseScale = 1; // Wächst permanent mit jedem Upgrade
       let logoGlow = 0;
       let upgradeLevel = 0; // Anzahl der Upgrades
+      let logoBreathPhase = 0; // Für organisches Atmen
       
       // Logo Energie-Ringe (akkumulierte Energie-Releases)
       const logoOutlines = [];
@@ -65,10 +66,32 @@
         return Math.sqrt(dx * dx + dy * dy);
       }
       
-      // Modal für Level 10 - CLEAN, MINIMAL, STRIKING
+      // Modal für Level 10 - INVERTIERT (weiß), CLEAN, MINIMAL
       let modalShown = false;
       let modalCursorX = 0, modalCursorY = 0;
       let modalTargetX = 0, modalTargetY = 0;
+      
+      function closeModal(modal) {
+        modal.style.opacity = '0';
+        setTimeout(() => {
+          modal.remove();
+          modalShown = false;
+        }, 600);
+      }
+      
+      function restartGame(modal) {
+        // Reset game state
+        upgradeLevel = 0;
+        logoBaseScale = 1;
+        cursorEnergy = 0;
+        redParticleActive = false;
+        redParticleCatches = 0;
+        redParticle.active = false;
+        isInverted = false;
+        logoBreathPhase = 0;
+        
+        closeModal(modal);
+      }
       
       function showModal() {
         if (modalShown) return;
@@ -82,30 +105,32 @@
         modal.id = 'level10-modal';
         modal.style.cssText = `
           position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-          background: #000; color: #fff; display: flex; flex-direction: column;
+          background: #fff; color: #000; display: flex; flex-direction: column;
           justify-content: center; align-items: center; z-index: 1000;
           font-family: "SF Pro Display", "Helvetica Neue", system-ui, sans-serif;
-          opacity: 0; transition: opacity 0.8s ease; cursor: none;
+          opacity: 0; transition: opacity 0.6s ease; cursor: none;
         `;
         modal.innerHTML = `
-          <div style="font-size: 8rem; font-weight: 100; margin-bottom: 1rem; letter-spacing: -0.05em;">∩</div>
-          <h1 style="font-size: 2.5rem; font-weight: 200; margin-bottom: 1.5rem; letter-spacing: 0.3em; text-transform: uppercase;">Level 10</h1>
-          <p style="font-size: 1rem; margin-bottom: 3rem; opacity: 0.6; font-weight: 300;">You unlocked the bridge. Follow for more.</p>
-          <div style="display: flex; gap: 1.5rem; margin-bottom: 2rem;">
-            <a href="https://x.com/br1dge_dev" target="_blank" class="modal-link" style="color: #fff; text-decoration: none; font-size: 1rem; padding: 0.8rem 2rem; border: 1px solid rgba(255,255,255,0.3); transition: all 0.3s; letter-spacing: 0.1em;">X / TWITTER</a>
-            <a href="https://warpcast.com/br1dge" target="_blank" class="modal-link" style="color: #fff; text-decoration: none; font-size: 1rem; padding: 0.8rem 2rem; border: 1px solid rgba(255,255,255,0.3); transition: all 0.3s; letter-spacing: 0.1em;">FARCASTER</a>
+          <button id="close-btn" style="position: absolute; top: 2rem; right: 2rem; background: transparent; border: none; color: #000; font-size: 1.5rem; cursor: none; padding: 0.5rem; opacity: 0.4; transition: opacity 0.3s;">✕</button>
+          <div style="font-size: 7rem; font-weight: 100; margin-bottom: 0.5rem; letter-spacing: -0.05em;">∩</div>
+          <h1 style="font-size: 2rem; font-weight: 200; margin-bottom: 1rem; letter-spacing: 0.3em; text-transform: uppercase;">Level 10</h1>
+          <p style="font-size: 0.9rem; margin-bottom: 2.5rem; opacity: 0.5; font-weight: 300;">You unlocked the bridge. Follow for more.</p>
+          <div style="display: flex; gap: 1.2rem; margin-bottom: 2rem;">
+            <a href="https://x.com/br1dge_dev" target="_blank" class="modal-link" style="color: #000; text-decoration: none; font-size: 0.9rem; padding: 0.7rem 1.8rem; border: 1px solid rgba(0,0,0,0.2); transition: all 0.3s; letter-spacing: 0.1em;">X / TWITTER</a>
+            <a href="https://warpcast.com/br1dge" target="_blank" class="modal-link" style="color: #000; text-decoration: none; font-size: 0.9rem; padding: 0.7rem 1.8rem; border: 1px solid rgba(0,0,0,0.2); transition: all 0.3s; letter-spacing: 0.1em;">FARCASTER</a>
           </div>
-          <button id="restart-btn" style="background: transparent; border: 1px solid rgba(255,255,255,0.2); color: rgba(255,255,255,0.5); padding: 0.6rem 1.5rem; font-size: 0.85rem; cursor: none; transition: all 0.3s; letter-spacing: 0.15em; font-family: inherit;">RESTART</button>
-          <p style="position: absolute; bottom: 2rem; font-size: 0.75rem; opacity: 0.3;">br1dge.xyz</p>
+          <button id="restart-btn" style="background: transparent; border: 1px solid rgba(0,0,0,0.15); color: rgba(0,0,0,0.4); padding: 0.5rem 1.2rem; font-size: 0.75rem; cursor: none; transition: all 0.3s; letter-spacing: 0.15em; font-family: inherit;">RESTART</button>
+          <p style="position: absolute; bottom: 2rem; font-size: 0.7rem; opacity: 0.25;">br1dge.xyz</p>
           <div id="modal-cursor" style="position: fixed; pointer-events: none; z-index: 1001;">
-            <div style="width: 8px; height: 8px; background: #fff; border-radius: 50%;"></div>
-            <div style="position: absolute; top: -10px; left: -10px; width: 28px; height: 28px; border: 1px solid rgba(255,255,255,0.4); border-radius: 50%;"></div>
+            <div style="width: 6px; height: 6px; background: #000; border-radius: 50%;"></div>
+            <div style="position: absolute; top: -9px; left: -9px; width: 24px; height: 24px; border: 1px solid rgba(0,0,0,0.3); border-radius: 50%;"></div>
           </div>
         `;
         
         document.body.appendChild(modal);
         
         const modalCursor = document.getElementById('modal-cursor');
+        const closeBtn = document.getElementById('close-btn');
         const restartBtn = document.getElementById('restart-btn');
         
         // Modal cursor tracking
@@ -120,51 +145,40 @@
           modalCursorX += (modalTargetX - modalCursorX) * 0.2;
           modalCursorY += (modalTargetY - modalCursorY) * 0.2;
           if (modalCursor) {
-            modalCursor.style.left = (modalCursorX - 4) + 'px';
-            modalCursor.style.top = (modalCursorY - 4) + 'px';
+            modalCursor.style.left = (modalCursorX - 3) + 'px';
+            modalCursor.style.top = (modalCursorY - 3) + 'px';
           }
           requestAnimationFrame(animateModalCursor);
         }
         animateModalCursor();
         
+        // Close button
+        closeBtn.addEventListener('mouseenter', () => { closeBtn.style.opacity = '1'; });
+        closeBtn.addEventListener('mouseleave', () => { closeBtn.style.opacity = '0.4'; });
+        closeBtn.addEventListener('click', () => closeModal(modal));
+        
         // Hover-Effekte für Links
         modal.querySelectorAll('.modal-link').forEach(link => {
           link.addEventListener('mouseenter', () => {
-            link.style.background = 'rgba(255,255,255,0.1)';
-            link.style.borderColor = '#fff';
+            link.style.background = 'rgba(0,0,0,0.05)';
+            link.style.borderColor = '#000';
           });
           link.addEventListener('mouseleave', () => {
             link.style.background = 'transparent';
-            link.style.borderColor = 'rgba(255,255,255,0.3)';
+            link.style.borderColor = 'rgba(0,0,0,0.2)';
           });
         });
         
         // Restart button
         restartBtn.addEventListener('mouseenter', () => {
-          restartBtn.style.borderColor = 'rgba(255,255,255,0.5)';
-          restartBtn.style.color = '#fff';
+          restartBtn.style.borderColor = 'rgba(0,0,0,0.4)';
+          restartBtn.style.color = '#000';
         });
         restartBtn.addEventListener('mouseleave', () => {
-          restartBtn.style.borderColor = 'rgba(255,255,255,0.2)';
-          restartBtn.style.color = 'rgba(255,255,255,0.5)';
+          restartBtn.style.borderColor = 'rgba(0,0,0,0.15)';
+          restartBtn.style.color = 'rgba(0,0,0,0.4)';
         });
-        restartBtn.addEventListener('click', () => {
-          // Reset game state
-          upgradeLevel = 0;
-          logoBaseScale = 1;
-          cursorEnergy = 0;
-          modalShown = false;
-          redParticleActive = false;
-          redParticleCatches = 0;
-          redParticle.active = false;
-          isInverted = false;
-          
-          // Fade out and remove modal
-          modal.style.opacity = '0';
-          setTimeout(() => {
-            modal.remove();
-          }, 800);
-        });
+        restartBtn.addEventListener('click', () => restartGame(modal));
         
         // Fade in
         requestAnimationFrame(() => {
@@ -214,42 +228,52 @@
       // Draw the logo - CLEAN, MINIMAL, CENTERED
       function drawLogo() {
         const time = Date.now() / 1000;
-        const baseLogoSize = Math.min(W, H) * 0.32; // Größer!
+        const baseLogoSize = Math.min(W, H) * 0.32;
         const logoSize = baseLogoSize * logoBaseScale;
         
         logoScale += (logoTargetScale - logoScale) * 0.12;
         logoGlow *= 0.9;
+        
+        // Organisches Atmen - mehrere überlagerte Sinuswellen für natürlichen Rhythmus
+        logoBreathPhase += 0.008; // Langsamer
+        const breath1 = Math.sin(logoBreathPhase) * 0.008; // Hauptatmung
+        const breath2 = Math.sin(logoBreathPhase * 1.7) * 0.003; // Sekundär
+        const breath3 = Math.sin(logoBreathPhase * 0.5) * 0.005; // Langwelle
+        const breathScale = 1 + breath1 + breath2 + breath3;
         
         const exactCenterX = W / 2;
         const exactCenterY = H / 2;
         
         ctx.save();
         ctx.translate(exactCenterX, exactCenterY);
-        ctx.scale(logoScale, logoScale);
+        ctx.scale(logoScale * breathScale, logoScale * breathScale);
         
         ctx.font = `200 ${logoSize}px "SF Pro Display", "Helvetica Neue", system-ui, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         
-        // Chromatic Aberration - dezent, ab Level 5 sanfter skalierend
+        // Chromatic Aberration - sehr dezent, ab Level 3 stark abflachend
         if (upgradeLevel > 0) {
-          // Offset: Level 1-4 linear, ab Level 5 logarithmisch abflachend
+          // Offset: Level 1-2 minimal, ab Level 3 logarithmisch gedämpft
           let offset;
-          if (upgradeLevel <= 4) {
-            offset = 2 + upgradeLevel * 1.2; // Sanfter Start
+          if (upgradeLevel <= 2) {
+            offset = 1 + upgradeLevel * 0.6; // Sehr sanfter Start
           } else {
-            // Ab Level 5: logarithmische Dämpfung
-            const base = 2 + 4 * 1.2; // Wert bei Level 4
-            offset = base + Math.log(upgradeLevel - 3) * 2; // Flacht stark ab
+            // Ab Level 3: starke logarithmische Dämpfung
+            const base = 1 + 2 * 0.6; // Wert bei Level 2
+            offset = base + Math.log(upgradeLevel - 1) * 1.2; // Flacht stark ab
           }
           
-          const aberrationPulse = 1 + Math.sin(time * 2.5) * 0.08; // Subtilerer Puls
-          const effectiveOffset = offset * aberrationPulse;
+          // Kein Pulsieren beim Offset - ruhiger Look
+          const effectiveOffset = offset;
           
-          // Alpha: dezenter, ab Level 5 kaum noch steigend
-          const alphaBase = upgradeLevel <= 4 
-            ? 0.12 + upgradeLevel * 0.03 
-            : 0.24 + Math.log(upgradeLevel - 3) * 0.02;
+          // Alpha: sehr dezent, ab Level 3 kaum noch steigend
+          let alphaBase;
+          if (upgradeLevel <= 2) {
+            alphaBase = 0.06 + upgradeLevel * 0.02; // Max 0.10 bei Level 2
+          } else {
+            alphaBase = 0.10 + Math.log(upgradeLevel - 1) * 0.015; // Sehr langsam steigend
+          }
           
           // Nur ein Layer - cleaner Look
           ctx.globalAlpha = alphaBase;
@@ -257,13 +281,6 @@
           ctx.fillText('∩', -effectiveOffset, 0);
           ctx.fillStyle = '#00ffff';
           ctx.fillText('∩', effectiveOffset, 0);
-          
-          // Grüner Kanal nur bei Level 5+, sehr subtil
-          if (upgradeLevel >= 5) {
-            ctx.globalAlpha = 0.08 + Math.log(upgradeLevel - 4) * 0.02;
-            ctx.fillStyle = '#00ff66';
-            ctx.fillText('∩', 0, -effectiveOffset * 0.3);
-          }
           
           ctx.globalAlpha = 1;
         }
@@ -329,41 +346,50 @@
       function drawAmbientParticles() {
         const time = Date.now() / 1000;
         
-        // VIELE Partikel spawnen - von allen Seiten UND im Bildschirm
+        // Partikel spawnen - organische Verteilung ohne Rechteck-Muster
         const maxParticles = 150;
-        const spawnRate = 0.4; // Höhere Spawn-Rate
+        const spawnRate = 0.35;
         
         if (ambientParticles.length < maxParticles && Math.random() < spawnRate) {
           let x, y, vx, vy;
           
-          // 40% von Rändern, 60% im Bildschirm - bessere Verteilung
-          if (Math.random() < 0.4) {
-            // Von Rändern - mit Drift zur Mitte
+          // Spawn-Methode: 30% Ränder, 70% überall im Bildschirm (Polar-Koordinaten für organische Verteilung)
+          if (Math.random() < 0.3) {
+            // Von Rändern - mit sanftem Drift
             const edge = Math.floor(Math.random() * 4);
-            const centerX = W / 2, centerY = H / 2;
             switch(edge) {
               case 0: x = Math.random() * W; y = -10; break;
               case 1: x = W + 10; y = Math.random() * H; break;
               case 2: x = Math.random() * W; y = H + 10; break;
               default: x = -10; y = Math.random() * H;
             }
-            // Drift zur Mitte
+            // Sanfter Drift zur Mitte
+            const centerX = W / 2, centerY = H / 2;
             const dx = centerX - x, dy = centerY - y;
             const dist = Math.sqrt(dx*dx + dy*dy);
-            vx = (dx / dist) * (0.8 + Math.random() * 0.6);
-            vy = (dy / dist) * (0.8 + Math.random() * 0.6);
+            vx = (dx / dist) * (0.4 + Math.random() * 0.4);
+            vy = (dy / dist) * (0.4 + Math.random() * 0.4);
           } else {
-            // Im Bildschirm - mittlerer Bereich bevorzugt
-            x = W * 0.2 + Math.random() * W * 0.6;
-            y = H * 0.2 + Math.random() * H * 0.6;
-            vx = (Math.random() - 0.5) * 0.5;
-            vy = (Math.random() - 0.5) * 0.5;
+            // Organische Verteilung: Polar-Koordinaten vom Zentrum
+            // Vermeidet rechteckige Muster
+            const angle = Math.random() * Math.PI * 2;
+            const maxRadius = Math.min(W, H) * 0.45;
+            // Radius mit quadratischer Verteilung (mehr außen als innen)
+            const radius = Math.sqrt(Math.random()) * maxRadius;
+            x = W / 2 + Math.cos(angle) * radius;
+            y = H / 2 + Math.sin(angle) * radius;
+            
+            // Zufällige langsame Drift
+            const driftAngle = Math.random() * Math.PI * 2;
+            const driftSpeed = 0.1 + Math.random() * 0.3;
+            vx = Math.cos(driftAngle) * driftSpeed;
+            vy = Math.sin(driftAngle) * driftSpeed;
           }
           
           ambientParticles.push({
             x, y, vx, vy,
-            size: 1.5 + Math.random() * 3,
-            alpha: 0.5 + Math.random() * 0.4,
+            size: 1.5 + Math.random() * 2.5,
+            alpha: 0.4 + Math.random() * 0.4,
             twinkle: Math.random() * Math.PI * 2,
             absorbed: false
           });
