@@ -193,172 +193,256 @@
         // G minor scale: G, A, Bb, C, D, Eb, F
         // Key frequencies: G3=196, Bb3=233, D4=294, G4=392, Bb4=466, D5=587, G5=784
         
-        // Energy collect - quick ascending blip (G minor pentatonic)
+        // Energy collect - detuned saw blip (like strudel lead)
         playCollect(pitch = 0) {
           if (!this.initialized || this.muted) return;
-          const osc = this.ctx.createOscillator();
-          const gain = this.ctx.createGain();
+          const now = this.ctx.currentTime;
           
-          osc.connect(gain);
-          gain.connect(this.masterGain);
-          
-          // G minor pentatonic: G5, Bb5, C6, D6, F6 (no clashing notes)
+          // G minor pentatonic: G5, Bb5, C6, D6, F6
           const gMinorPenta = [784, 932, 1047, 1175, 1397];
           const baseFreq = gMinorPenta[Math.min(pitch, gMinorPenta.length - 1)];
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(baseFreq, this.ctx.currentTime);
-          osc.frequency.linearRampToValueAtTime(baseFreq * 1.05, this.ctx.currentTime + 0.04);
           
-          gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.06);
-          
-          osc.start(this.ctx.currentTime);
-          osc.stop(this.ctx.currentTime + 0.08);
+          // Detuned saw pair (like supersaw)
+          [-6, 6].forEach(detune => {
+            const osc = this.ctx.createOscillator();
+            const filter = this.ctx.createBiquadFilter();
+            const gain = this.ctx.createGain();
+            
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(baseFreq, now);
+            osc.detune.setValueAtTime(detune + Math.random() * 4, now);
+            
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(2000, now);
+            filter.frequency.exponentialRampToValueAtTime(400, now + 0.08);
+            filter.Q.setValueAtTime(2, now);
+            
+            osc.connect(filter);
+            filter.connect(gain);
+            gain.connect(this.masterGain);
+            
+            gain.gain.setValueAtTime(0.06, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+            
+            osc.start(now);
+            osc.stop(now + 0.12);
+          });
         },
         
-        // Red particle capture - deep thump (G bass)
+        // Red particle capture - synth bass drop with FM
         playCapture() {
           if (!this.initialized || this.muted) return;
-          const osc = this.ctx.createOscillator();
+          const now = this.ctx.currentTime;
+          
+          // FM-like bass (carrier + modulator)
+          const carrier = this.ctx.createOscillator();
+          const modulator = this.ctx.createOscillator();
+          const modGain = this.ctx.createGain();
+          const filter = this.ctx.createBiquadFilter();
           const gain = this.ctx.createGain();
           
-          osc.connect(gain);
+          // Modulator -> modGain -> carrier.frequency
+          modulator.type = 'sine';
+          modulator.frequency.setValueAtTime(49, now);
+          modGain.gain.setValueAtTime(30, now);
+          modGain.gain.exponentialRampToValueAtTime(5, now + 0.2);
+          modulator.connect(modGain);
+          modGain.connect(carrier.frequency);
+          
+          // Carrier
+          carrier.type = 'sawtooth';
+          carrier.frequency.setValueAtTime(98, now);
+          carrier.frequency.exponentialRampToValueAtTime(49, now + 0.15);
+          
+          filter.type = 'lowpass';
+          filter.frequency.setValueAtTime(800, now);
+          filter.frequency.exponentialRampToValueAtTime(100, now + 0.2);
+          
+          carrier.connect(filter);
+          filter.connect(gain);
           gain.connect(this.masterGain);
           
-          osc.type = 'sine';
-          // G2 (98Hz) to G1 (49Hz)
-          osc.frequency.setValueAtTime(98, this.ctx.currentTime);
-          osc.frequency.exponentialRampToValueAtTime(49, this.ctx.currentTime + 0.15);
+          gain.gain.setValueAtTime(0.3, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
           
-          gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.2);
-          
-          osc.start(this.ctx.currentTime);
-          osc.stop(this.ctx.currentTime + 0.25);
-          
-          // Add noise burst
-          this.playNoiseBurst(0.1, 800);
+          modulator.start(now);
+          carrier.start(now);
+          modulator.stop(now + 0.3);
+          carrier.stop(now + 0.3);
         },
         
-        // Discharge - impact burst (G bass)
+        // Discharge - filtered saw impact with pitch bend
         playDischarge(level = 1) {
           if (!this.initialized || this.muted) return;
           const now = this.ctx.currentTime;
           
-          // Low G sine thump
-          const osc = this.ctx.createOscillator();
-          const gain = this.ctx.createGain();
-          osc.connect(gain);
-          gain.connect(this.masterGain);
-          
-          osc.type = 'sine';
-          // G2 (98Hz) based
-          osc.frequency.setValueAtTime(98 + level * 5, now);
-          osc.frequency.exponentialRampToValueAtTime(49, now + 0.2);
-          
-          gain.gain.setValueAtTime(0.35, now);
-          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
-          
-          osc.start(now);
-          osc.stop(now + 0.35);
-          
-          // Noise burst
-          this.playNoiseBurst(0.15, 600 + level * 50);
+          // Layered detuned saws for impact
+          [-8, 0, 8].forEach(detune => {
+            const osc = this.ctx.createOscillator();
+            const filter = this.ctx.createBiquadFilter();
+            const gain = this.ctx.createGain();
+            
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(98 + level * 3, now);
+            osc.frequency.exponentialRampToValueAtTime(49, now + 0.25);
+            osc.detune.setValueAtTime(detune, now);
+            
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(400 + level * 80, now);
+            filter.frequency.exponentialRampToValueAtTime(80, now + 0.3);
+            filter.Q.setValueAtTime(4, now);
+            
+            osc.connect(filter);
+            filter.connect(gain);
+            gain.connect(this.masterGain);
+            
+            gain.gain.setValueAtTime(0.15, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+            
+            osc.start(now);
+            osc.stop(now + 0.4);
+          });
         },
         
-        // Level up - soft pad swell (G minor triad)
+        // Level up - supersaw pad swell (G minor triad)
         playLevelUp(level = 1) {
           if (!this.initialized || this.muted) return;
           const now = this.ctx.currentTime;
           
-          // G minor triad: G4, Bb4, D5 - played together as pad
-          const chord = [392, 466, 587];
+          // G minor triad with supersaw-like detuning
+          const chord = [392, 466, 587]; // G4, Bb4, D5
+          const detunes = [-12, -6, 0, 6, 12];
           
           chord.forEach((freq) => {
-            const osc = this.ctx.createOscillator();
-            const gain = this.ctx.createGain();
-            osc.connect(gain);
-            gain.connect(this.masterGain);
-            
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(freq, now);
-            
-            // Soft attack, gentle release
-            gain.gain.setValueAtTime(0, now);
-            gain.gain.linearRampToValueAtTime(0.1, now + 0.15);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
-            
-            osc.start(now);
-            osc.stop(now + 0.65);
+            detunes.forEach(detune => {
+              const osc = this.ctx.createOscillator();
+              const filter = this.ctx.createBiquadFilter();
+              const gain = this.ctx.createGain();
+              
+              osc.type = 'sawtooth';
+              osc.frequency.setValueAtTime(freq, now);
+              osc.detune.setValueAtTime(detune + Math.random() * 3, now);
+              
+              filter.type = 'lowpass';
+              filter.frequency.setValueAtTime(400, now);
+              filter.frequency.linearRampToValueAtTime(1800, now + 0.2);
+              filter.frequency.exponentialRampToValueAtTime(300, now + 0.7);
+              
+              osc.connect(filter);
+              filter.connect(gain);
+              gain.connect(this.masterGain);
+              
+              gain.gain.setValueAtTime(0, now);
+              gain.gain.linearRampToValueAtTime(0.025, now + 0.15);
+              gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+              
+              osc.start(now);
+              osc.stop(now + 0.85);
+            });
           });
         },
         
-        // Max stack - warm sustained chord (G minor 7)
+        // Max stack - big supersaw chord (Gm7)
         playMaxStack() {
           if (!this.initialized || this.muted) return;
           const now = this.ctx.currentTime;
           
-          // Gm7 chord: G3, Bb3, D4, F4 (matches track harmony)
+          // Gm7: G3, Bb3, D4, F4 - full supersaw treatment
           const freqs = [196, 233, 294, 349];
+          const detunes = [-15, -8, 0, 8, 15];
+          
           freqs.forEach((freq) => {
-            const osc = this.ctx.createOscillator();
-            const gain = this.ctx.createGain();
-            osc.connect(gain);
-            gain.connect(this.masterGain);
-            
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(freq, now);
-            
-            // Slow swell, long sustain
-            gain.gain.setValueAtTime(0, now);
-            gain.gain.linearRampToValueAtTime(0.12, now + 0.2);
-            gain.gain.setValueAtTime(0.12, now + 0.5);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
-            
-            osc.start(now);
-            osc.stop(now + 1.3);
+            detunes.forEach(detune => {
+              const osc = this.ctx.createOscillator();
+              const filter = this.ctx.createBiquadFilter();
+              const gain = this.ctx.createGain();
+              
+              osc.type = 'sawtooth';
+              osc.frequency.setValueAtTime(freq, now);
+              osc.detune.setValueAtTime(detune + Math.random() * 4, now);
+              
+              filter.type = 'lowpass';
+              filter.frequency.setValueAtTime(300, now);
+              filter.frequency.linearRampToValueAtTime(2200, now + 0.3);
+              filter.frequency.setValueAtTime(2200, now + 0.8);
+              filter.frequency.exponentialRampToValueAtTime(200, now + 1.5);
+              filter.Q.setValueAtTime(1, now);
+              
+              osc.connect(filter);
+              filter.connect(gain);
+              gain.connect(this.masterGain);
+              
+              gain.gain.setValueAtTime(0, now);
+              gain.gain.linearRampToValueAtTime(0.02, now + 0.25);
+              gain.gain.setValueAtTime(0.02, now + 0.9);
+              gain.gain.exponentialRampToValueAtTime(0.001, now + 1.6);
+              
+              osc.start(now);
+              osc.stop(now + 1.7);
+            });
           });
         },
         
-        // Modal enter - soft D5 bell
+        // Modal enter - filtered saw rise (D5)
         playModalEnter() {
           if (!this.initialized || this.muted) return;
           const now = this.ctx.currentTime;
           
-          const osc = this.ctx.createOscillator();
-          const gain = this.ctx.createGain();
-          osc.connect(gain);
-          gain.connect(this.masterGain);
-          
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(587, now); // D5 (5th of G)
-          
-          gain.gain.setValueAtTime(0, now);
-          gain.gain.linearRampToValueAtTime(0.12, now + 0.03);
-          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
-          
-          osc.start(now);
-          osc.stop(now + 0.85);
+          [-5, 5].forEach(detune => {
+            const osc = this.ctx.createOscillator();
+            const filter = this.ctx.createBiquadFilter();
+            const gain = this.ctx.createGain();
+            
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(587, now); // D5
+            osc.detune.setValueAtTime(detune, now);
+            
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(300, now);
+            filter.frequency.linearRampToValueAtTime(2000, now + 0.1);
+            filter.frequency.exponentialRampToValueAtTime(400, now + 0.6);
+            
+            osc.connect(filter);
+            filter.connect(gain);
+            gain.connect(this.masterGain);
+            
+            gain.gain.setValueAtTime(0, now);
+            gain.gain.linearRampToValueAtTime(0.08, now + 0.05);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+            
+            osc.start(now);
+            osc.stop(now + 0.75);
+          });
         },
         
-        // Modal close - gentle G4 release
+        // Modal close - filtered saw fall (G4)
         playModalClose() {
           if (!this.initialized || this.muted) return;
           const now = this.ctx.currentTime;
           
-          const osc = this.ctx.createOscillator();
-          const gain = this.ctx.createGain();
-          osc.connect(gain);
-          gain.connect(this.masterGain);
-          
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(392, now); // G4
-          
-          gain.gain.setValueAtTime(0.1, now);
-          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
-          
-          osc.start(now);
-          osc.stop(now + 0.4);
+          [-5, 5].forEach(detune => {
+            const osc = this.ctx.createOscillator();
+            const filter = this.ctx.createBiquadFilter();
+            const gain = this.ctx.createGain();
+            
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(392, now); // G4
+            osc.detune.setValueAtTime(detune, now);
+            
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(1500, now);
+            filter.frequency.exponentialRampToValueAtTime(200, now + 0.3);
+            
+            osc.connect(filter);
+            filter.connect(gain);
+            gain.connect(this.masterGain);
+            
+            gain.gain.setValueAtTime(0.07, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+            
+            osc.start(now);
+            osc.stop(now + 0.4);
+          });
         },
         
         // Helper: Noise burst
