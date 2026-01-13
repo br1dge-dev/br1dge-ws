@@ -40,8 +40,13 @@
       let redParticleActive = false;
       let redParticleSpawnTime = 0;
       let redParticleCatches = 0; // Wie oft gefangen in dieser Ladung
+      let redStackCount = 0; // Gestackte red particles im inverted mode (max 6: 5 Ringe + Core)
+      const MAX_RED_STACK = 6; // 5 Ringe + 1 Core
       let isInverted = false;
       const redParticle = { x: 0, y: 0, vx: 0, vy: 0, active: false, phase: 0 };
+      
+      // Game complete state (für Restart-Button nach Modal)
+      let gameCompleted = false;
       
       // Particles
       const particles = [];
@@ -76,7 +81,11 @@
         setTimeout(() => {
           modal.remove();
           modalShown = false;
-        }, 600);
+          // Restart-Button unter Logo anzeigen (nur bei Level 10)
+          if (gameCompleted) {
+            showRestartButton();
+          }
+        }, 800);
       }
       
       function restartGame(modal) {
@@ -86,11 +95,61 @@
         cursorEnergy = 0;
         redParticleActive = false;
         redParticleCatches = 0;
+        redStackCount = 0;
         redParticle.active = false;
         isInverted = false;
         logoBreathPhase = 0;
+        gameCompleted = false;
         
-        closeModal(modal);
+        // Entferne Restart-Button falls vorhanden
+        const existingBtn = document.getElementById('restart-overlay-btn');
+        if (existingBtn) existingBtn.remove();
+        
+        if (modal) closeModal(modal);
+      }
+      
+      function showRestartButton() {
+        // Entferne vorherigen falls vorhanden
+        const existingBtn = document.getElementById('restart-overlay-btn');
+        if (existingBtn) existingBtn.remove();
+        
+        const btn = document.createElement('button');
+        btn.id = 'restart-overlay-btn';
+        btn.textContent = 'RESTART';
+        btn.style.cssText = `
+          position: fixed;
+          left: 50%;
+          top: calc(50% + ${Math.min(W, H) * 0.18}px);
+          transform: translateX(-50%);
+          background: transparent;
+          border: 1px solid rgba(255,255,255,0.2);
+          color: rgba(255,255,255,0.4);
+          padding: 0.5rem 1.2rem;
+          font-size: 0.75rem;
+          cursor: none;
+          transition: all 0.3s;
+          letter-spacing: 0.15em;
+          font-family: "SF Pro Display", system-ui, sans-serif;
+          z-index: 100;
+          opacity: 0;
+        `;
+        
+        btn.addEventListener('mouseenter', () => {
+          btn.style.borderColor = 'rgba(255,255,255,0.5)';
+          btn.style.color = '#fff';
+        });
+        btn.addEventListener('mouseleave', () => {
+          btn.style.borderColor = 'rgba(255,255,255,0.2)';
+          btn.style.color = 'rgba(255,255,255,0.4)';
+        });
+        btn.addEventListener('click', () => restartGame(null));
+        
+        document.body.appendChild(btn);
+        
+        // Fade in
+        requestAnimationFrame(() => {
+          btn.style.opacity = '1';
+        });
       }
       
       function showModal() {
@@ -108,7 +167,7 @@
           background: #fff; color: #000; display: flex; flex-direction: column;
           justify-content: center; align-items: center; z-index: 1000;
           font-family: "SF Pro Display", "Helvetica Neue", system-ui, sans-serif;
-          opacity: 0; transition: opacity 0.6s ease; cursor: none;
+          opacity: 0; transition: opacity 1.2s ease; cursor: none;
         `;
         modal.innerHTML = `
           <button id="close-btn" style="position: absolute; top: 2rem; right: 2rem; background: transparent; border: none; color: #000; font-size: 1.5rem; cursor: none; padding: 0.5rem; opacity: 0.4; transition: opacity 0.3s;">✕</button>
@@ -515,13 +574,38 @@
         const dist = Math.sqrt(dx * dx + dy * dy);
         
         if (dist < 30) {
-          // CAPTURED! Aktiviere Inversion
-          isInverted = true;
-          canvas.style.filter = 'invert(1)'; // GESAMTE APP INVERTIEREN!
+          // CAPTURED!
           redParticle.active = false;
           redParticleCatches++;
           
-          // Roter Partikel-Burst - MASSIV
+          // Im inverted mode: Stack aufbauen statt nur +3 levels
+          if (isInverted && redStackCount < MAX_RED_STACK) {
+            redStackCount++;
+            
+            // Bei MAX_RED_STACK (6): Sofort Level 10!
+            if (redStackCount >= MAX_RED_STACK) {
+              // MEGA BURST - goldene Partikel
+              for (let i = 0; i < 100; i++) {
+                const angle = (i / 100) * Math.PI * 2;
+                const speed = 12 + Math.random() * 12;
+                particles.push({
+                  x: redParticle.x,
+                  y: redParticle.y,
+                  vx: Math.cos(angle) * speed,
+                  vy: Math.sin(angle) * speed,
+                  life: 1.5,
+                  hue: 45 // Gold
+                });
+              }
+            }
+          } else {
+            // Erster Catch: Aktiviere Inversion
+            isInverted = true;
+            canvas.style.filter = 'invert(1)';
+            redStackCount = 1; // Erster Stack
+          }
+          
+          // Roter Partikel-Burst
           for (let i = 0; i < 60; i++) {
             const angle = (i / 60) * Math.PI * 2;
             const speed = 8 + Math.random() * 8;
@@ -548,18 +632,18 @@
             }, s * 50);
           }
           
-          // Wenn noch Catches übrig, neuer Red Particle spawnt
-          if (redParticleCatches < 2 && cursorEnergy >= MAX_ENERGY) {
-            redParticleSpawnTime = Date.now() + 1000;
+          // Nächster Red Particle spawnt solange inverted und nicht max
+          if (isInverted && redStackCount < MAX_RED_STACK && cursorEnergy >= MAX_ENERGY) {
+            redParticleSpawnTime = Date.now() + 800;
             redParticleActive = true;
           }
         }
         
-        // Off screen - neuer Versuch wenn noch Catches übrig
+        // Off screen - neuer Versuch solange inverted und nicht max
         if (redParticle.x < -50 || redParticle.x > W + 50 || redParticle.y < -50 || redParticle.y > H + 50) {
           redParticle.active = false;
-          if (redParticleCatches < 2 && cursorEnergy >= MAX_ENERGY) {
-            redParticleSpawnTime = Date.now() + 500;
+          if (isInverted && redStackCount < MAX_RED_STACK && cursorEnergy >= MAX_ENERGY) {
+            redParticleSpawnTime = Date.now() + 400;
             redParticleActive = true;
           }
         }
@@ -652,7 +736,7 @@
         ctx.save();
         ctx.translate(cursorX, cursorY);
         
-        // === POWER METER - Solid Rings, keine Transparenz ===
+        // === POWER METER - Solid Rings, rote Ringe für red stacks ===
         const totalLayers = 5;
         const energyPerLayer = MAX_ENERGY / totalLayers;
         
@@ -664,18 +748,23 @@
           const ringRadius = cursorSize + 5 + layer * 5;
           const ringWidth = 4;
           
+          // Ringe von außen nach innen rot färben basierend auf redStackCount
+          // Layer 4 (außen) = redStackCount >= 1, Layer 3 = >= 2, etc.
+          const isRedRing = redStackCount >= (totalLayers - layer);
+          
           ctx.beginPath();
           ctx.arc(0, 0, ringRadius, -Math.PI/2, -Math.PI/2 + layerProgress * Math.PI * 2);
-          ctx.strokeStyle = '#ffffff';
+          ctx.strokeStyle = isRedRing ? '#ff2222' : '#ffffff';
           ctx.lineWidth = ringWidth;
           ctx.lineCap = 'butt';
           ctx.stroke();
         }
         
-        // Core - clean, solid
+        // Core - rot wenn alle 5 Ringe + Core gefüllt (redStackCount >= 6)
+        const isCoreRed = redStackCount >= MAX_RED_STACK;
         ctx.beginPath();
         ctx.arc(0, 0, cursorSize, 0, Math.PI * 2);
-        ctx.fillStyle = '#ffffff';
+        ctx.fillStyle = isCoreRed ? '#ff2222' : '#ffffff';
         ctx.fill();
         
         ctx.restore();
@@ -724,41 +813,57 @@
         
         // Nur wenn auf Logo geklickt UND Threshold erreicht
         if (dist < logoRadius && cursorEnergy >= ENERGY_THRESHOLD && upgradeLevel < 10) {
-          // Bei Inversion: 3 Levels auf einmal
-          const levelsToAdd = isInverted ? 3 : 1;
-          upgradeLevel = Math.min(10, upgradeLevel + levelsToAdd);
-          logoBaseScale += 0.18 * levelsToAdd; // NOCH STÄRKER - sehr sichtbar
+          let levelsToAdd = 1;
+          let isMaxStack = false;
           
-          // Inversion zurücksetzen nach Discharge
+          // Bei max red stack (6): Sofort Level 10!
+          if (redStackCount >= MAX_RED_STACK) {
+            isMaxStack = true;
+            upgradeLevel = 10;
+            logoBaseScale = 1 + 0.18 * 10; // Volles Upgrade
+          } else if (isInverted) {
+            // Bei Inversion: +3 Levels pro gestacktem red particle
+            levelsToAdd = 3 * redStackCount;
+            upgradeLevel = Math.min(10, upgradeLevel + levelsToAdd);
+            logoBaseScale += 0.18 * levelsToAdd;
+          } else {
+            // Normal: +1 Level
+            upgradeLevel = Math.min(10, upgradeLevel + 1);
+            logoBaseScale += 0.18;
+          }
+          
+          // Inversion und Stack zurücksetzen nach Discharge
           if (isInverted) {
             isInverted = false;
             canvas.style.filter = '';
           }
+          redStackCount = 0;
           
           const intensity = cursorEnergy;
-          const releaseHue = (upgradeLevel * 40) % 360;
+          const releaseHue = isMaxStack ? 45 : (upgradeLevel * 40) % 360; // Gold bei max stack
           
-          // Mehr Ringe bei höheren Levels
-          const ringCount = 5 + upgradeLevel * 2;
+          // Mehr Ringe bei höheren Levels / max stack
+          const ringCount = isMaxStack ? 30 : (5 + upgradeLevel * 2);
           for (let o = 0; o < ringCount; o++) {
             setTimeout(() => {
               logoOutlines.push({
                 alpha: 1,
                 radius: 10 + o * 6,
-                hue: (releaseHue + o * 15) % 360
+                hue: isMaxStack ? (45 + o * 5) % 60 : (releaseHue + o * 15) % 360
               });
-            }, o * 20);
+            }, o * (isMaxStack ? 10 : 20));
           }
           
-          // Scale punch - stärker bei höheren Levels
-          logoTargetScale = 1.2 + upgradeLevel * 0.05;
-          setTimeout(() => { logoTargetScale = 1; }, 150);
+          // Scale punch - stärker bei höheren Levels / max stack
+          logoTargetScale = isMaxStack ? 1.5 : (1.2 + upgradeLevel * 0.05);
+          setTimeout(() => { logoTargetScale = 1; }, isMaxStack ? 300 : 150);
           
-          // Level 10 erreicht - Modal zeigen
+          // Level 10 erreicht - Modal zeigen (später und langsamer)
           if (upgradeLevel >= 10) {
+            gameCompleted = true;
             setTimeout(() => {
               showModal();
-            }, 500);
+            }, isMaxStack ? 1500 : 1200); // Später
           }
           
           // DRUCKWELLE - alle ambient particles wegstoßen
@@ -840,38 +945,55 @@
           });
           
           if (dist < logoRadius && cursorEnergy >= ENERGY_THRESHOLD && upgradeLevel < 10) {
-            const levelsToAdd = isInverted ? 3 : 1;
-            upgradeLevel = Math.min(10, upgradeLevel + levelsToAdd);
-            logoBaseScale += 0.18 * levelsToAdd; // Stärker wie Desktop
+            let levelsToAdd = 1;
+            let isMaxStack = false;
             
-            // Inversion zurücksetzen nach Discharge
+            // Bei max red stack (6): Sofort Level 10!
+            if (redStackCount >= MAX_RED_STACK) {
+              isMaxStack = true;
+              upgradeLevel = 10;
+              logoBaseScale = 1 + 0.18 * 10;
+            } else if (isInverted) {
+              // Bei Inversion: +3 Levels pro gestacktem red particle
+              levelsToAdd = 3 * redStackCount;
+              upgradeLevel = Math.min(10, upgradeLevel + levelsToAdd);
+              logoBaseScale += 0.18 * levelsToAdd;
+            } else {
+              // Normal: +1 Level
+              upgradeLevel = Math.min(10, upgradeLevel + 1);
+              logoBaseScale += 0.18;
+            }
+            
+            // Inversion und Stack zurücksetzen nach Discharge
             if (isInverted) {
               isInverted = false;
               canvas.style.filter = '';
             }
+            redStackCount = 0;
             
             const intensity = cursorEnergy;
-            const releaseHue = (upgradeLevel * 50) % 360;
+            const releaseHue = isMaxStack ? 45 : (upgradeLevel * 50) % 360;
             
-            const ringCount = 5 + upgradeLevel * 2;
+            const ringCount = isMaxStack ? 30 : (5 + upgradeLevel * 2);
             for (let o = 0; o < ringCount; o++) {
               setTimeout(() => {
                 logoOutlines.push({
                   alpha: 1,
                   radius: 15 + o * 8,
-                  hue: (releaseHue + o * 20) % 360
+                  hue: isMaxStack ? (45 + o * 5) % 60 : (releaseHue + o * 20) % 360
                 });
-              }, o * 25);
+              }, o * (isMaxStack ? 10 : 25));
             }
             
-            logoTargetScale = 1.25;
-            setTimeout(() => { logoTargetScale = 1; }, 120);
+            logoTargetScale = isMaxStack ? 1.5 : 1.25;
+            setTimeout(() => { logoTargetScale = 1; }, isMaxStack ? 300 : 120);
             
-            // Level 10 Modal
+            // Level 10 Modal (später)
             if (upgradeLevel >= 10) {
+              gameCompleted = true;
               setTimeout(() => {
                 showModal();
-              }, 500);
+              }, isMaxStack ? 1500 : 1200);
             }
             
             // Druckwelle
