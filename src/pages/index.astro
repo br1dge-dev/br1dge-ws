@@ -40,6 +40,8 @@
       let redParticleActive = false;
       let redParticleSpawnTime = 0;
       let redParticleCatches = 0; // Wie oft gefangen in dieser Ladung
+      let redParticleMisses = 0; // Wie oft verpasst in dieser Ladung (max 3)
+      const MAX_RED_MISSES = 3; // Nach 3 Misses muss neu geladen werden
       let redStackCount = 0; // Gestackte red particles im inverted mode (max 6: 5 Ringe + Core)
       const MAX_RED_STACK = 6; // 5 Ringe + 1 Core
       let isInverted = false;
@@ -95,6 +97,7 @@
         cursorEnergy = 0;
         redParticleActive = false;
         redParticleCatches = 0;
+        redParticleMisses = 0;
         redStackCount = 0;
         redParticle.active = false;
         isInverted = false;
@@ -167,7 +170,7 @@
           background: #fff; color: #000; display: flex; flex-direction: column;
           justify-content: center; align-items: center; z-index: 1000;
           font-family: "SF Pro Display", "Helvetica Neue", system-ui, sans-serif;
-          opacity: 0; transition: opacity 1.2s ease; cursor: none;
+          opacity: 0; transition: opacity 2.5s ease; cursor: none;
         `;
         modal.innerHTML = `
           <button id="close-btn" style="position: absolute; top: 2rem; right: 2rem; background: transparent; border: none; color: #000; font-size: 1.5rem; cursor: none; padding: 0.5rem; opacity: 0.4; transition: opacity 0.3s;">✕</button>
@@ -494,10 +497,11 @@
             cursorEnergy = Math.min(MAX_ENERGY, cursorEnergy + 0.008);
             p.alpha *= 0.2;
             
-            // Wenn gerade voll geworden UND noch Catches übrig, Red Particle spawnen
-            if (cursorEnergy >= MAX_ENERGY && !redParticle.active && redParticleCatches < 2) {
+            // Wenn gerade voll geworden, Red Particle spawnen (einmalig pro Ladung)
+            if (cursorEnergy >= MAX_ENERGY && !redParticle.active && !redParticleActive && redParticleMisses < MAX_RED_MISSES) {
               redParticleSpawnTime = Date.now() + 1500; // 1.5 Sekunden warten
               redParticleActive = true;
+              redParticleMisses = 0; // Reset misses für neue Ladung
             }
           }
           
@@ -632,19 +636,25 @@
             }, s * 50);
           }
           
-          // Nächster Red Particle spawnt solange inverted und nicht max
-          if (isInverted && redStackCount < MAX_RED_STACK && cursorEnergy >= MAX_ENERGY) {
+          // Nächster Red Particle spawnt solange inverted, nicht max stack, und nicht zu viele misses
+          if (isInverted && redStackCount < MAX_RED_STACK && redParticleMisses < MAX_RED_MISSES && cursorEnergy >= MAX_ENERGY) {
             redParticleSpawnTime = Date.now() + 800;
             redParticleActive = true;
           }
         }
         
-        // Off screen - neuer Versuch solange inverted und nicht max
+        // Off screen = MISS - neuer Versuch nur wenn noch Versuche übrig
         if (redParticle.x < -50 || redParticle.x > W + 50 || redParticle.y < -50 || redParticle.y > H + 50) {
           redParticle.active = false;
-          if (isInverted && redStackCount < MAX_RED_STACK && cursorEnergy >= MAX_ENERGY) {
+          redParticleMisses++;
+          
+          // Nur neuer Versuch wenn noch Misses übrig UND inverted
+          if (isInverted && redStackCount < MAX_RED_STACK && redParticleMisses < MAX_RED_MISSES && cursorEnergy >= MAX_ENERGY) {
             redParticleSpawnTime = Date.now() + 400;
             redParticleActive = true;
+          } else if (redParticleMisses >= MAX_RED_MISSES) {
+            // Max Misses erreicht - Red particle deaktivieren, User muss dischargen
+            redParticleActive = false;
           }
         }
         
@@ -736,7 +746,7 @@
         ctx.save();
         ctx.translate(cursorX, cursorY);
         
-        // === POWER METER - Solid Rings, rote Ringe für red stacks ===
+        // === POWER METER - Solid Rings, cyan für red stacks (invertiert = rot) ===
         const totalLayers = 5;
         const energyPerLayer = MAX_ENERGY / totalLayers;
         
@@ -748,23 +758,24 @@
           const ringRadius = cursorSize + 5 + layer * 5;
           const ringWidth = 4;
           
-          // Ringe von außen nach innen rot färben basierend auf redStackCount
+          // Ringe von außen nach innen cyan färben basierend auf redStackCount
           // Layer 4 (außen) = redStackCount >= 1, Layer 3 = >= 2, etc.
-          const isRedRing = redStackCount >= (totalLayers - layer);
+          // Cyan (#00ffff) wird invertiert zu Rot (#ff0000)
+          const isStackedRing = redStackCount >= (totalLayers - layer);
           
           ctx.beginPath();
           ctx.arc(0, 0, ringRadius, -Math.PI/2, -Math.PI/2 + layerProgress * Math.PI * 2);
-          ctx.strokeStyle = isRedRing ? '#ff2222' : '#ffffff';
+          ctx.strokeStyle = isStackedRing ? '#00ffff' : '#ffffff';
           ctx.lineWidth = ringWidth;
           ctx.lineCap = 'butt';
           ctx.stroke();
         }
         
-        // Core - rot wenn alle 5 Ringe + Core gefüllt (redStackCount >= 6)
-        const isCoreRed = redStackCount >= MAX_RED_STACK;
+        // Core - cyan wenn alle 5 Ringe + Core gefüllt (invertiert = rot)
+        const isCoreStacked = redStackCount >= MAX_RED_STACK;
         ctx.beginPath();
         ctx.arc(0, 0, cursorSize, 0, Math.PI * 2);
-        ctx.fillStyle = isCoreRed ? '#ff2222' : '#ffffff';
+        ctx.fillStyle = isCoreStacked ? '#00ffff' : '#ffffff';
         ctx.fill();
         
         ctx.restore();
@@ -858,12 +869,12 @@
           logoTargetScale = isMaxStack ? 1.5 : (1.2 + upgradeLevel * 0.05);
           setTimeout(() => { logoTargetScale = 1; }, isMaxStack ? 300 : 150);
           
-          // Level 10 erreicht - Modal zeigen (später und langsamer)
+          // Level 10 erreicht - Modal zeigen (4s delay)
           if (upgradeLevel >= 10) {
             gameCompleted = true;
             setTimeout(() => {
               showModal();
-            }, isMaxStack ? 1500 : 1200); // Später
+            }, 4000); // 4 Sekunden warten
           }
           
           // DRUCKWELLE - alle ambient particles wegstoßen
@@ -909,6 +920,7 @@
           cursorEnergy = 0;
           redParticleActive = false;
           redParticleCatches = 0; // Reset für nächste Ladung
+          redParticleMisses = 0; // Reset misses für nächste Ladung
           redParticle.active = false;
         }
       });
@@ -988,12 +1000,12 @@
             logoTargetScale = isMaxStack ? 1.5 : 1.25;
             setTimeout(() => { logoTargetScale = 1; }, isMaxStack ? 300 : 120);
             
-            // Level 10 Modal (später)
+            // Level 10 Modal (4s delay)
             if (upgradeLevel >= 10) {
               gameCompleted = true;
               setTimeout(() => {
                 showModal();
-              }, isMaxStack ? 1500 : 1200);
+              }, 4000);
             }
             
             // Druckwelle
@@ -1037,6 +1049,7 @@
             cursorEnergy = 0;
             redParticleActive = false;
             redParticleCatches = 0;
+            redParticleMisses = 0;
             redParticle.active = false;
           }
         }
