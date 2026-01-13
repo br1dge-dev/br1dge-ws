@@ -29,43 +29,31 @@
       .grid {
         position: fixed;
         inset: 0;
-        background-image: 
-          linear-gradient(to right, #1a1a1a 1px, transparent 1px),
-          linear-gradient(to bottom, #1a1a1a 1px, transparent 1px);
-        background-size: 100px 100px;
-        animation: gridPulse 4s ease-in-out infinite;
       }
 
-      @keyframes gridPulse {
-        0%, 100% { opacity: 0.5; }
-        50% { opacity: 0.8; }
-      }
-
-      .grid::after {
-        content: '';
+      .grid-line {
         position: absolute;
-        left: 0;
-        right: 0;
-        top: 50%;
-        height: 1px;
-        background: linear-gradient(90deg, transparent, #00FFFF, transparent);
-        animation: lineGlow 3s ease-in-out infinite;
+        background: #1a1a1a;
       }
 
-      .grid::before {
-        content: '';
-        position: absolute;
+      .grid-line-v {
+        width: 1px;
         top: 0;
         bottom: 0;
-        left: 50%;
-        width: 1px;
-        background: linear-gradient(180deg, transparent, #FF00FF, transparent);
-        animation: lineGlow 3s ease-in-out infinite 0.5s;
       }
 
-      @keyframes lineGlow {
-        0%, 100% { opacity: 0.2; }
-        50% { opacity: 0.6; }
+      .grid-line-h {
+        height: 1px;
+        left: 0;
+        right: 0;
+      }
+
+      .bit {
+        position: absolute;
+        width: 4px;
+        height: 4px;
+        background: #333;
+        border-radius: 50%;
       }
 
       .container {
@@ -79,22 +67,10 @@
       .logo-svg {
         width: 600px;
         cursor: none;
-        transition: transform 0.2s ease-out;
-      }
-
-      .logo-svg:hover {
-        transform: scale(1.03);
       }
 
       .bridge-text {
-        animation: colorCycle 6s ease-in-out infinite;
-      }
-
-      @keyframes colorCycle {
-        0% { fill: #00FFFF; filter: drop-shadow(0 0 8px #00FFFF); }
-        33% { fill: #FF00FF; filter: drop-shadow(0 0 8px #FF00FF); }
-        66% { fill: #7C3AED; filter: drop-shadow(0 0 8px #7C3AED); }
-        100% { fill: #00FFFF; filter: drop-shadow(0 0 8px #00FFFF); }
+        fill: #E5E5E5;
       }
 
       .cursor {
@@ -120,7 +96,7 @@
         position: fixed;
         width: 3px;
         height: 3px;
-        background: rgba(0, 255, 255, 0.5);
+        background: rgba(0, 255, 255, 0.3);
         border-radius: 50%;
         pointer-events: none;
         z: 999;
@@ -133,7 +109,6 @@
         height: 40px;
         border: 2px solid #333;
         z-index: 20;
-        transition: border-color 0.3s ease;
       }
 
       .corner-tl { top: 30px; left: 30px; border-right: none; border-bottom: none; }
@@ -143,7 +118,7 @@
     </style>
   </head>
   <body>
-    <div class="grid"></div>
+    <div class="grid" id="grid"></div>
     
     <div class="cursor" id="cursor"></div>
     
@@ -157,7 +132,7 @@
         <text 
           class="bridge-text"
           x="100" 
-          y="110" 
+          y="115" 
           font-size="160" 
           font-weight="bold" 
           text-anchor="middle" 
@@ -167,16 +142,102 @@
     </div>
 
     <script>
+      const grid = document.getElementById('grid');
       const cursor = document.getElementById('cursor');
       const logo = document.getElementById('logo');
       
       const trails = [];
+      const gridSize = 80;
+      const bits = [];
       
       let mouseX = 0;
       let mouseY = 0;
       let cursorX = 0;
       let cursorY = 0;
       let isOverLogo = false;
+
+      // Create grid lines
+      function createGrid() {
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        
+        // Vertical lines
+        for (let x = 0; x <= w; x += gridSize) {
+          const line = document.createElement('div');
+          line.className = 'grid-line grid-line-v';
+          line.style.left = x + 'px';
+          grid.appendChild(line);
+        }
+        
+        // Horizontal lines
+        for (let y = 0; y <= h; y += gridSize) {
+          const line = document.createElement('div');
+          line.className = 'grid-line grid-line-h';
+          line.style.top = y + 'px';
+          grid.appendChild(line);
+        }
+        
+        // Create bits along grid lines
+        createBits(w, h);
+      }
+
+      function createBits(w, h) {
+        // Vertical bits
+        for (let x = 10; x <= w; x += gridSize) {
+          for (let y = 0; y <= h; y += gridSize) {
+            const bit = document.createElement('div');
+            bit.className = 'bit';
+            bit.style.left = (x + gridSize/2) + 'px';
+            bit.style.top = y + 'px';
+            bit.dataset.x = x;
+            bit.dataset.y = y;
+            bit.dataset.offset = Math.random() * 10;
+            bit.dataset.axis = 'v';
+            grid.appendChild(bit);
+            bits.push(bit);
+          }
+        }
+        
+        // Horizontal bits
+        for (let y = 10; y <= h; y += gridSize) {
+          for (let x = 0; x <= w; x += gridSize) {
+            const bit = document.createElement('div');
+            bit.className = 'bit';
+            bit.style.left = x + 'px';
+            bit.style.top = (y + gridSize/2) + 'px';
+            bit.dataset.x = x;
+            bit.dataset.y = y;
+            bit.dataset.offset = Math.random() * 10;
+            bit.dataset.axis = 'h';
+            grid.appendChild(bit);
+            bits.push(bit);
+          }
+        }
+      }
+
+      // Animate bits along grid lines
+      function animateBits() {
+        const time = Date.now() / 1000;
+        
+        bits.forEach((bit) => {
+          const offset = parseFloat(bit.dataset.offset);
+          const axis = bit.dataset.axis;
+          const baseX = parseFloat(bit.dataset.x);
+          const baseY = parseFloat(bit.dataset.y);
+          
+          let pos = (time * 30 + offset) % gridSize;
+          
+          if (axis === 'h') {
+            bit.style.left = (baseX + pos) + 'px';
+            bit.style.opacity = 0.2 + Math.sin(pos * 0.2) * 0.2;
+          } else {
+            bit.style.top = (baseY + pos) + 'px';
+            bit.style.opacity = 0.2 + Math.sin(pos * 0.2) * 0.2;
+          }
+        });
+        
+        requestAnimationFrame(animateBits);
+      }
 
       function isOverLogoArea(x, y) {
         const logoEl = document.getElementById('logo');
@@ -197,7 +258,7 @@
           document.body.appendChild(trail);
           trails.push({ el: trail, x: e.clientX, y: e.clientY, age: 0 });
           
-          if (trails.length > 10) {
+          if (trails.length > 8) {
             const old = trails.shift();
             if (old) old.el.remove();
           }
@@ -205,7 +266,7 @@
         
         trails.forEach((t) => {
           t.age++;
-          const opacity = Math.max(0, 1 - t.age / 30);
+          const opacity = Math.max(0, 1 - t.age / 20);
           t.el.style.opacity = opacity.toString();
           t.el.style.left = t.x + 'px';
           t.el.style.top = t.y + 'px';
@@ -226,31 +287,35 @@
         
         requestAnimationFrame(animateCursor);
       }
+      
+      // Initialize
+      createGrid();
+      animateBits();
       animateCursor();
 
       document.addEventListener('click', (e) => {
         const ripple = document.createElement('div');
         ripple.style.cssText = `
           position: fixed;
-          width: 50px;
-          height: 50px;
+          width: 40px;
+          height: 40px;
           border: 2px solid #00FFFF;
           border-radius: 50%;
           pointer-events: none;
           z-index: 50;
-          left: ${e.clientX - 25}px;
-          top: ${e.clientY - 25}px;
-          animation: ripple 0.5s ease-out forwards;
+          left: ${e.clientX - 20}px;
+          top: ${e.clientY - 20}px;
+          animation: ripple 0.4s ease-out forwards;
         `;
         document.body.appendChild(ripple);
-        setTimeout(() => ripple.remove(), 500);
+        setTimeout(() => ripple.remove(), 400);
       });
 
       const style = document.createElement('style');
       style.textContent = `
         @keyframes ripple {
           0% { transform: scale(0.5); opacity: 1; }
-          100% { transform: scale(5); opacity: 0; }
+          100% { transform: scale(6); opacity: 0; }
         }
       `;
       document.head.appendChild(style);
