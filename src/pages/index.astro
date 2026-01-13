@@ -114,10 +114,10 @@
           <button id="close-btn" style="position: absolute; top: 2rem; right: 2rem; background: transparent; border: none; color: #000; font-size: 1.5rem; cursor: none; padding: 0.5rem; opacity: 0.4; transition: opacity 0.3s;">✕</button>
           <div style="font-size: 7rem; font-weight: 100; margin-bottom: 0.5rem; letter-spacing: -0.05em;">∩</div>
           <h1 style="font-size: 2rem; font-weight: 200; margin-bottom: 1rem; letter-spacing: 0.3em; text-transform: uppercase;">Level 10</h1>
-          <p style="font-size: 0.9rem; margin-bottom: 2.5rem; opacity: 0.5; font-weight: 300;">You unlocked the bridge. Follow for more.</p>
+          <p style="font-size: 0.9rem; margin-bottom: 2.5rem; opacity: 0.5; font-weight: 300;">Good job! You may now follow me</p>
           <div style="display: flex; gap: 1.2rem; margin-bottom: 2rem;">
-            <a href="https://x.com/br1dge_dev" target="_blank" class="modal-link" style="color: #000; text-decoration: none; font-size: 0.9rem; padding: 0.7rem 1.8rem; border: 1px solid rgba(0,0,0,0.2); transition: all 0.3s; letter-spacing: 0.1em;">X / TWITTER</a>
-            <a href="https://warpcast.com/br1dge" target="_blank" class="modal-link" style="color: #000; text-decoration: none; font-size: 0.9rem; padding: 0.7rem 1.8rem; border: 1px solid rgba(0,0,0,0.2); transition: all 0.3s; letter-spacing: 0.1em;">FARCASTER</a>
+            <a href="https://x.com/br1dge_eth" target="_blank" class="modal-link" style="color: #000; text-decoration: none; font-size: 0.9rem; padding: 0.7rem 1.8rem; border: 1px solid rgba(0,0,0,0.2); transition: all 0.3s; letter-spacing: 0.1em;">X / TWITTER</a>
+            <a href="https://farcaster.xyz/br1dge" target="_blank" class="modal-link" style="color: #000; text-decoration: none; font-size: 0.9rem; padding: 0.7rem 1.8rem; border: 1px solid rgba(0,0,0,0.2); transition: all 0.3s; letter-spacing: 0.1em;">FARCASTER</a>
           </div>
           <button id="restart-btn" style="background: transparent; border: 1px solid rgba(0,0,0,0.15); color: rgba(0,0,0,0.4); padding: 0.5rem 1.2rem; font-size: 0.75rem; cursor: none; transition: all 0.3s; letter-spacing: 0.15em; font-family: inherit;">RESTART</button>
           <p style="position: absolute; bottom: 2rem; font-size: 0.7rem; opacity: 0.25;">br1dge.xyz</p>
@@ -252,30 +252,30 @@
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         
-        // Chromatic Aberration - sehr dezent, ab Level 3 stark abflachend
+        // Chromatic Aberration - sichtbar, ab Level 5 nur noch geringe Verstärkung
         if (upgradeLevel > 0) {
-          // Offset: Level 1-2 minimal, ab Level 3 logarithmisch gedämpft
+          // Offset: Level 1-4 linear wachsend, ab Level 5 stark abflachend
           let offset;
-          if (upgradeLevel <= 2) {
-            offset = 1 + upgradeLevel * 0.6; // Sehr sanfter Start
+          if (upgradeLevel <= 4) {
+            offset = 2 + upgradeLevel * 1.0; // Sichtbarer Start (2-6px)
           } else {
-            // Ab Level 3: starke logarithmische Dämpfung
-            const base = 1 + 2 * 0.6; // Wert bei Level 2
-            offset = base + Math.log(upgradeLevel - 1) * 1.2; // Flacht stark ab
+            // Ab Level 5: logarithmische Dämpfung
+            const base = 2 + 4 * 1.0; // Wert bei Level 4 = 6
+            offset = base + Math.log(upgradeLevel - 3) * 1.5; // Flacht ab (6-8px max)
           }
           
-          // Kein Pulsieren beim Offset - ruhiger Look
           const effectiveOffset = offset;
           
-          // Alpha: sehr dezent, ab Level 3 kaum noch steigend
+          // Alpha: sichtbar, ab Level 5 nur noch minimal steigend
           let alphaBase;
-          if (upgradeLevel <= 2) {
-            alphaBase = 0.06 + upgradeLevel * 0.02; // Max 0.10 bei Level 2
+          if (upgradeLevel <= 4) {
+            alphaBase = 0.15 + upgradeLevel * 0.04; // 0.19 - 0.31
           } else {
-            alphaBase = 0.10 + Math.log(upgradeLevel - 1) * 0.015; // Sehr langsam steigend
+            // Ab Level 5: sehr langsam steigend
+            alphaBase = 0.31 + Math.log(upgradeLevel - 3) * 0.025; // Max ~0.37
           }
           
-          // Nur ein Layer - cleaner Look
+          // Ein Layer - cleaner Look
           ctx.globalAlpha = alphaBase;
           ctx.fillStyle = '#ff0066';
           ctx.fillText('∩', -effectiveOffset, 0);
@@ -346,16 +346,19 @@
       function drawAmbientParticles() {
         const time = Date.now() / 1000;
         
-        // Partikel spawnen - organische Verteilung ohne Rechteck-Muster
-        const maxParticles = 150;
-        const spawnRate = 0.35;
+        // Partikel spawnen - gleichmäßige Verteilung über gesamten Bildschirm
+        const maxParticles = 180;
+        const spawnRate = 0.45;
         
         if (ambientParticles.length < maxParticles && Math.random() < spawnRate) {
           let x, y, vx, vy;
           
-          // Spawn-Methode: 30% Ränder, 70% überall im Bildschirm (Polar-Koordinaten für organische Verteilung)
-          if (Math.random() < 0.3) {
-            // Von Rändern - mit sanftem Drift
+          // Einfache gleichmäßige Verteilung über gesamten Bildschirm
+          // Kein Polar, kein Rechteck-Grid - einfach random mit Jitter
+          const rand = Math.random();
+          
+          if (rand < 0.2) {
+            // 20% von Rändern - für kontinuierlichen Nachschub
             const edge = Math.floor(Math.random() * 4);
             switch(edge) {
               case 0: x = Math.random() * W; y = -10; break;
@@ -367,21 +370,28 @@
             const centerX = W / 2, centerY = H / 2;
             const dx = centerX - x, dy = centerY - y;
             const dist = Math.sqrt(dx*dx + dy*dy);
-            vx = (dx / dist) * (0.4 + Math.random() * 0.4);
-            vy = (dy / dist) * (0.4 + Math.random() * 0.4);
+            vx = (dx / dist) * (0.3 + Math.random() * 0.3);
+            vy = (dy / dist) * (0.3 + Math.random() * 0.3);
           } else {
-            // Organische Verteilung: Polar-Koordinaten vom Zentrum
-            // Vermeidet rechteckige Muster
-            const angle = Math.random() * Math.PI * 2;
-            const maxRadius = Math.min(W, H) * 0.45;
-            // Radius mit quadratischer Verteilung (mehr außen als innen)
-            const radius = Math.sqrt(Math.random()) * maxRadius;
-            x = W / 2 + Math.cos(angle) * radius;
-            y = H / 2 + Math.sin(angle) * radius;
+            // 80% überall im Bildschirm - komplett zufällig
+            // Nutze Gaussian-ähnliche Verteilung für natürlicheren Look
+            // Box-Muller für weichere Verteilung
+            const u1 = Math.random();
+            const u2 = Math.random();
+            const gaussian1 = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+            const gaussian2 = Math.sqrt(-2 * Math.log(u1)) * Math.sin(2 * Math.PI * u2);
             
-            // Zufällige langsame Drift
+            // Zentriert mit Standardabweichung ~0.35 der Bildschirmgröße
+            x = W / 2 + gaussian1 * W * 0.35;
+            y = H / 2 + gaussian2 * H * 0.35;
+            
+            // Clamp auf sichtbaren Bereich mit etwas Rand
+            x = Math.max(20, Math.min(W - 20, x));
+            y = Math.max(20, Math.min(H - 20, y));
+            
+            // Sehr langsame zufällige Drift
             const driftAngle = Math.random() * Math.PI * 2;
-            const driftSpeed = 0.1 + Math.random() * 0.3;
+            const driftSpeed = 0.05 + Math.random() * 0.15;
             vx = Math.cos(driftAngle) * driftSpeed;
             vy = Math.sin(driftAngle) * driftSpeed;
           }
