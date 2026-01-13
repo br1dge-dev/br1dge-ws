@@ -9,316 +9,303 @@
         margin: 0; 
         padding: 0; 
         box-sizing: border-box; 
-        cursor: none !important;
-      }
-      
-      @media (max-width: 768px) {
-        * { cursor: auto !important; }
-      }
-      
-      body {
-        background: #0a0a0a;
-        height: 100vh;
-        width: 100vw;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        overflow: hidden;
-      }
-
-      .grid {
-        position: fixed;
-        inset: 0;
-      }
-
-      .grid-line {
-        position: absolute;
-        background: #1a1a1a;
-      }
-
-      .grid-line-v {
-        width: 1px;
-        top: 0;
-        bottom: 0;
-      }
-
-      .grid-line-h {
-        height: 1px;
-        left: 0;
-        right: 0;
-      }
-
-      .bit {
-        position: absolute;
-        width: 4px;
-        height: 4px;
-        background: #333;
-        border-radius: 50%;
-      }
-
-      .container {
-        position: relative;
-        z-index: 10;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-
-      .logo-svg {
-        width: 600px;
         cursor: none;
       }
-
-      .bridge-text {
-        fill: #E5E5E5;
+      
+      html, body {
+        height: 100%;
+        width: 100%;
+        overflow: hidden;
+        background: #000;
       }
 
-      .cursor {
+      #canvas {
         position: fixed;
-        width: 6px;
-        height: 6px;
-        background: white;
-        border-radius: 50%;
-        pointer-events: none;
-        z-index: 1000;
-        mix-blend-mode: difference;
-        transform: translate(-50%, -50%);
-        transition: width 0.15s, height 0.15s, background 0.15s;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
       }
-
-      .cursor.active {
-        width: 24px;
-        height: 24px;
-        background: rgba(0, 255, 255, 0.4);
-      }
-
-      .cursor-trail {
-        position: fixed;
-        width: 3px;
-        height: 3px;
-        background: rgba(0, 255, 255, 0.3);
-        border-radius: 50%;
-        pointer-events: none;
-        z: 999;
-        transform: translate(-50%, -50%);
-      }
-
-      .corner {
-        position: fixed;
-        width: 40px;
-        height: 40px;
-        border: 2px solid #333;
-        z-index: 20;
-      }
-
-      .corner-tl { top: 30px; left: 30px; border-right: none; border-bottom: none; }
-      .corner-tr { top: 30px; right: 30px; border-left: none; border-bottom: none; }
-      .corner-bl { bottom: 30px; left: 30px; border-right: none; border-top: none; }
-      .corner-br { bottom: 30px; right: 30px; border-left: none; border-top: none; }
     </style>
   </head>
   <body>
-    <div class="grid" id="grid"></div>
-    
-    <div class="cursor" id="cursor"></div>
-    
-    <div class="corner corner-tl"></div>
-    <div class="corner corner-tr"></div>
-    <div class="corner corner-bl"></div>
-    <div class="corner corner-br"></div>
-
-    <div class="container">
-      <svg class="logo-svg" id="logo" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-        <text 
-          class="bridge-text"
-          x="100" 
-          y="115" 
-          font-size="160" 
-          font-weight="bold" 
-          text-anchor="middle" 
-          dominant-baseline="central"
-        >͆</text>
-      </svg>
-    </div>
+    <canvas id="canvas"></canvas>
 
     <script>
-      const grid = document.getElementById('grid');
-      const cursor = document.getElementById('cursor');
-      const logo = document.getElementById('logo');
+      const canvas = document.getElementById('canvas');
+      const ctx = canvas.getContext('2d');
       
-      const trails = [];
+      let width, height;
+      let mouseX = 0, mouseY = 0;
+      let targetX = 0, targetY = 0;
+      let logoHovered = false;
+      let clickRipples = [];
+      let pulsePhase = 0;
+      
       const gridSize = 80;
       const bits = [];
       
-      let mouseX = 0;
-      let mouseY = 0;
-      let cursorX = 0;
-      let cursorY = 0;
-      let isOverLogo = false;
-
-      // Create grid lines
-      function createGrid() {
-        const w = window.innerWidth;
-        const h = window.innerHeight;
-        
-        // Vertical lines
-        for (let x = 0; x <= w; x += gridSize) {
-          const line = document.createElement('div');
-          line.className = 'grid-line grid-line-v';
-          line.style.left = x + 'px';
-          grid.appendChild(line);
-        }
-        
-        // Horizontal lines
-        for (let y = 0; y <= h; y += gridSize) {
-          const line = document.createElement('div');
-          line.className = 'grid-line grid-line-h';
-          line.style.top = y + 'px';
-          grid.appendChild(line);
-        }
-        
-        // Create bits along grid lines
-        createBits(w, h);
+      // Resize
+      function resize() {
+        width = canvas.width = window.innerWidth;
+        height = canvas.height = window.innerHeight;
+        initBits();
       }
-
-      function createBits(w, h) {
-        // Vertical bits
-        for (let x = 10; x <= w; x += gridSize) {
-          for (let y = 0; y <= h; y += gridSize) {
-            const bit = document.createElement('div');
-            bit.className = 'bit';
-            bit.style.left = (x + gridSize/2) + 'px';
-            bit.style.top = y + 'px';
-            bit.dataset.x = x;
-            bit.dataset.y = y;
-            bit.dataset.offset = Math.random() * 10;
-            bit.dataset.axis = 'v';
-            grid.appendChild(bit);
-            bits.push(bit);
-          }
-        }
+      
+      // Initialize bits along grid
+      function initBits() {
+        bits.length = 0;
         
         // Horizontal bits
-        for (let y = 10; y <= h; y += gridSize) {
-          for (let x = 0; x <= w; x += gridSize) {
-            const bit = document.createElement('div');
-            bit.className = 'bit';
-            bit.style.left = x + 'px';
-            bit.style.top = (y + gridSize/2) + 'px';
-            bit.dataset.x = x;
-            bit.dataset.y = y;
-            bit.dataset.offset = Math.random() * 10;
-            bit.dataset.axis = 'h';
-            grid.appendChild(bit);
-            bits.push(bit);
+        for (let y = gridSize; y < height; y += gridSize) {
+          for (let i = 0; i < 5; i++) {
+            bits.push({
+              x: Math.random() * width,
+              y: y,
+              speed: 0.3 + Math.random() * 0.5,
+              axis: 'h',
+              baseY: y
+            });
+          }
+        }
+        
+        // Vertical bits
+        for (let x = gridSize; x < width; x += gridSize) {
+          for (let i = 0; i < 5; i++) {
+            bits.push({
+              x: x,
+              y: Math.random() * height,
+              speed: 0.3 + Math.random() * 0.5,
+              axis: 'v',
+              baseX: x
+            });
           }
         }
       }
-
-      // Animate bits along grid lines
-      function animateBits() {
-        const time = Date.now() / 1000;
+      
+      // Draw grid
+      function drawGrid() {
+        ctx.strokeStyle = '#151515';
+        ctx.lineWidth = 1;
         
-        bits.forEach((bit) => {
-          const offset = parseFloat(bit.dataset.offset);
-          const axis = bit.dataset.axis;
-          const baseX = parseFloat(bit.dataset.x);
-          const baseY = parseFloat(bit.dataset.y);
-          
-          let pos = (time * 30 + offset) % gridSize;
-          
-          if (axis === 'h') {
-            bit.style.left = (baseX + pos) + 'px';
-            bit.style.opacity = 0.2 + Math.sin(pos * 0.2) * 0.2;
+        for (let x = 0; x <= width; x += gridSize) {
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, height);
+          ctx.stroke();
+        }
+        
+        for (let y = 0; y <= height; y += gridSize) {
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(width, y);
+          ctx.stroke();
+        }
+      }
+      
+      // Draw animated bits
+      function drawBits() {
+        bits.forEach(bit => {
+          if (bit.axis === 'h') {
+            bit.x += bit.speed;
+            if (bit.x > width) bit.x = 0;
           } else {
-            bit.style.top = (baseY + pos) + 'px';
-            bit.style.opacity = 0.2 + Math.sin(pos * 0.2) * 0.2;
+            bit.y += bit.speed;
+            if (bit.y > height) bit.y = 0;
           }
+          
+          // Calculate fade based on position
+          let fade;
+          if (bit.axis === 'h') {
+            fade = Math.sin((bit.x / width) * Math.PI) * 0.4;
+          } else {
+            fade = Math.sin((bit.y / height) * Math.PI) * 0.4;
+          }
+          
+          ctx.beginPath();
+          ctx.arc(bit.x, bit.y, 2, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(0, 255, 255, ${fade})`;
+          ctx.fill();
         });
+      }
+      
+      // Draw logo - PERFECTLY CENTERED
+      function drawLogo() {
+        const centerX = width / 2;
+        const centerY = height / 2;
         
-        requestAnimationFrame(animateBits);
+        // Logo size
+        const size = Math.min(width, height) * 0.4;
+        
+        // Check hover
+        const dx = mouseX - centerX;
+        const dy = mouseY - centerY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        logoHovered = dist < size * 0.4;
+        
+        // Pulse effect
+        pulsePhase += 0.02;
+        const pulse = logoHovered ? 1 + Math.sin(pulsePhase * 3) * 0.03 : 1;
+        
+        // Color cycle
+        const hue = (Date.now() / 50) % 360;
+        const color = logoHovered 
+          ? `hsl(${hue}, 100%, 70%)` 
+          : '#E5E5E5';
+        
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        ctx.scale(pulse, pulse);
+        
+        // Draw bridge symbol
+        ctx.font = `bold ${size}px system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = color;
+        ctx.fillText('͆', 0, 0);
+        
+        ctx.restore();
       }
-
-      function isOverLogoArea(x, y) {
-        const logoEl = document.getElementById('logo');
-        if (!logoEl) return false;
-        const rect = logoEl.getBoundingClientRect();
-        return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+      
+      // Draw cursor
+      function drawCursor() {
+        // Smooth follow
+        targetX += (mouseX - targetX) * 0.15;
+        targetY += (mouseY - targetY) * 0.15;
+        
+        const size = logoHovered ? 40 : 8;
+        const alpha = logoHovered ? 0.3 : 0.8;
+        
+        // Outer ring when hovering
+        if (logoHovered) {
+          ctx.beginPath();
+          ctx.arc(targetX, targetY, size, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(0, 255, 255, ${alpha})`;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+        
+        // Inner dot
+        ctx.beginPath();
+        ctx.arc(targetX, targetY, logoHovered ? 4 : 4, 0, Math.PI * 2);
+        ctx.fillStyle = '#fff';
+        ctx.fill();
       }
-
+      
+      // Draw click ripples
+      function drawRipples() {
+        clickRipples = clickRipples.filter(r => {
+          r.size += 15;
+          r.alpha -= 0.05;
+          
+          if (r.alpha <= 0) return false;
+          
+          ctx.beginPath();
+          ctx.arc(r.x, r.y, r.size, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(0, 255, 255, ${r.alpha})`;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          
+          return true;
+        });
+      }
+      
+      // Main loop
+      function draw() {
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, width, height);
+        
+        drawGrid();
+        drawBits();
+        drawLogo();
+        drawRipples();
+        drawCursor();
+        
+        requestAnimationFrame(draw);
+      }
+      
+      // Events
+      window.addEventListener('resize', resize);
+      
       document.addEventListener('mousemove', (e) => {
         mouseX = e.clientX;
         mouseY = e.clientY;
-        
-        isOverLogo = isOverLogoArea(mouseX, mouseY);
-        
-        if (!isOverLogo) {
-          const trail = document.createElement('div');
-          trail.className = 'cursor-trail';
-          document.body.appendChild(trail);
-          trails.push({ el: trail, x: e.clientX, y: e.clientY, age: 0 });
-          
-          if (trails.length > 8) {
-            const old = trails.shift();
-            if (old) old.el.remove();
-          }
-        }
-        
-        trails.forEach((t) => {
-          t.age++;
-          const opacity = Math.max(0, 1 - t.age / 20);
-          t.el.style.opacity = opacity.toString();
-          t.el.style.left = t.x + 'px';
-          t.el.style.top = t.y + 'px';
-        });
       });
-
-      function animateCursor() {
-        cursorX += (mouseX - cursorX) * 0.25;
-        cursorY += (mouseY - cursorY) * 0.25;
-        cursor.style.left = cursorX + 'px';
-        cursor.style.top = cursorY + 'px';
+      
+      document.addEventListener('click', (e) => {
+        clickRipples.push({
+          x: e.clientX,
+          y: e.clientY,
+          size: 10,
+          alpha: 1
+        });
         
-        if (isOverLogo) {
-          cursor.classList.add('active');
-        } else {
-          cursor.classList.remove('active');
+        // Burst bits on click
+        for (let i = 0; i < 8; i++) {
+          const angle = (i / 8) * Math.PI * 2;
+          bits.push({
+            x: e.clientX,
+            y: e.clientY,
+            speed: 3 + Math.random() * 2,
+            axis: Math.random() > 0.5 ? 'h' : 'v',
+            baseX: e.clientX,
+            baseY: e.clientY,
+            vx: Math.cos(angle) * 3,
+            vy: Math.sin(angle) * 3,
+            life: 60
+          });
         }
-        
-        requestAnimationFrame(animateCursor);
+      });
+      
+      // Update bits with burst particles
+      const originalDrawBits = drawBits;
+      function drawBitsWithBurst() {
+        bits.forEach((bit, index) => {
+          if (bit.life !== undefined) {
+            bit.x += bit.vx;
+            bit.y += bit.vy;
+            bit.life--;
+            
+            if (bit.life <= 0) {
+              bits.splice(index, 1);
+              return;
+            }
+            
+            const fade = bit.life / 60;
+            ctx.beginPath();
+            ctx.arc(bit.x, bit.y, 3, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(255, 0, 255, ${fade})`;
+            ctx.fill();
+          } else {
+            if (bit.axis === 'h') {
+              bit.x += bit.speed;
+              if (bit.x > width) bit.x = 0;
+            } else {
+              bit.y += bit.speed;
+              if (bit.y > height) bit.y = 0;
+            }
+            
+            let fade;
+            if (bit.axis === 'h') {
+              fade = Math.sin((bit.x / width) * Math.PI) * 0.3;
+            } else {
+              fade = Math.sin((bit.y / height) * Math.PI) * 0.3;
+            }
+            
+            ctx.beginPath();
+            ctx.arc(bit.x, bit.y, 2, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(0, 255, 255, ${fade})`;
+            ctx.fill();
+          }
+        });
       }
       
-      // Initialize
-      createGrid();
-      animateBits();
-      animateCursor();
-
-      document.addEventListener('click', (e) => {
-        const ripple = document.createElement('div');
-        ripple.style.cssText = `
-          position: fixed;
-          width: 40px;
-          height: 40px;
-          border: 2px solid #00FFFF;
-          border-radius: 50%;
-          pointer-events: none;
-          z-index: 50;
-          left: ${e.clientX - 20}px;
-          top: ${e.clientY - 20}px;
-          animation: ripple 0.4s ease-out forwards;
-        `;
-        document.body.appendChild(ripple);
-        setTimeout(() => ripple.remove(), 400);
-      });
-
-      const style = document.createElement('style');
-      style.textContent = `
-        @keyframes ripple {
-          0% { transform: scale(0.5); opacity: 1; }
-          100% { transform: scale(6); opacity: 0; }
-        }
-      `;
-      document.head.appendChild(style);
+      // Override
+      drawBits = drawBitsWithBurst;
+      
+      // Start
+      resize();
+      draw();
     </script>
   </body>
 </html>
