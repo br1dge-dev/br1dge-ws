@@ -40,12 +40,10 @@
       let redParticleActive = false;
       let redParticleSpawnTime = 0;
       let redParticleCatches = 0; // Wie oft gefangen in dieser Ladung
-      let redParticleMisses = 0; // Wie oft verpasst in dieser Ladung (max 3)
-      const MAX_RED_MISSES = 3; // Nach 3 Misses muss neu geladen werden
       let redStackCount = 0; // Gestackte red particles im inverted mode (max 6: 5 Ringe + Core)
       const MAX_RED_STACK = 6; // 5 Ringe + 1 Core
       let isInverted = false;
-      const redParticle = { x: 0, y: 0, vx: 0, vy: 0, active: false, phase: 0 };
+      const redParticle = { x: 0, y: 0, vx: 0, vy: 0, active: false, phase: 0, turnTimer: 0 };
       
       // Game complete state (für Restart-Button nach Modal)
       let gameCompleted = false;
@@ -97,7 +95,6 @@
         cursorEnergy = 0;
         redParticleActive = false;
         redParticleCatches = 0;
-        redParticleMisses = 0;
         redStackCount = 0;
         redParticle.active = false;
         isInverted = false;
@@ -498,10 +495,9 @@
             p.alpha *= 0.2;
             
             // Wenn gerade voll geworden, Red Particle spawnen (einmalig pro Ladung)
-            if (cursorEnergy >= MAX_ENERGY && !redParticle.active && !redParticleActive && redParticleMisses < MAX_RED_MISSES) {
+            if (cursorEnergy >= MAX_ENERGY && !redParticle.active && !redParticleActive) {
               redParticleSpawnTime = Date.now() + 1500; // 1.5 Sekunden warten
               redParticleActive = true;
-              redParticleMisses = 0; // Reset misses für neue Ladung
             }
           }
           
@@ -539,38 +535,67 @@
       
 
       
-      // Red Particle - spawnt nach voller Ladung, schwierige Flugbahn
+      // Red Particle - spawnt nach voller Ladung, komplexe kurvige Flugbahn
       function drawRedParticle() {
         const time = Date.now() / 1000;
         
         // Spawn nach Timer
         if (redParticleActive && !redParticle.active && Date.now() > redParticleSpawnTime) {
           const edge = Math.floor(Math.random() * 4);
-          const speed = 6 + Math.random() * 4; // Schneller
+          const speed = 3 + Math.random() * 2; // Langsamer für längeres Verweilen
           switch(edge) {
             case 0: redParticle.x = Math.random() * W; redParticle.y = -10; break;
             case 1: redParticle.x = W + 10; redParticle.y = Math.random() * H; break;
             case 2: redParticle.x = Math.random() * W; redParticle.y = H + 10; break;
             default: redParticle.x = -10; redParticle.y = Math.random() * H;
           }
-          // Zufällige Richtung - nicht direkt durch Mitte
-          const angle = Math.random() * Math.PI * 2;
-          redParticle.vx = Math.cos(angle) * speed;
-          redParticle.vy = Math.sin(angle) * speed;
+          // Richtung grob zur Mitte, aber mit Offset
+          const targetX = W/2 + (Math.random() - 0.5) * W * 0.4;
+          const targetY = H/2 + (Math.random() - 0.5) * H * 0.4;
+          const dx = targetX - redParticle.x;
+          const dy = targetY - redParticle.y;
+          const dist = Math.sqrt(dx*dx + dy*dy);
+          redParticle.vx = (dx / dist) * speed;
+          redParticle.vy = (dy / dist) * speed;
           redParticle.active = true;
           redParticle.phase = Math.random() * Math.PI * 2;
+          redParticle.turnTimer = 0;
         }
         
         if (!redParticle.active) return;
         
-        // Kurvige Flugbahn - Sinuswellen
-        redParticle.phase = (redParticle.phase || 0) + 0.15;
-        const curve = Math.sin(redParticle.phase) * 3;
-        const perpX = -redParticle.vy / Math.sqrt(redParticle.vx*redParticle.vx + redParticle.vy*redParticle.vy);
-        const perpY = redParticle.vx / Math.sqrt(redParticle.vx*redParticle.vx + redParticle.vy*redParticle.vy);
+        // Komplexe kurvige Flugbahn mit zufälligen Richtungswechseln
+        redParticle.phase += 0.08; // Langsamere Oszillation
+        redParticle.turnTimer++;
+        
+        // Zufällige Richtungswechsel alle 60-120 Frames
+        if (redParticle.turnTimer > 60 + Math.random() * 60) {
+          redParticle.turnTimer = 0;
+          // Leichte Richtungsänderung (nicht komplett neu)
+          const turnAngle = (Math.random() - 0.5) * Math.PI * 0.8;
+          const currentSpeed = Math.sqrt(redParticle.vx*redParticle.vx + redParticle.vy*redParticle.vy);
+          const currentAngle = Math.atan2(redParticle.vy, redParticle.vx);
+          const newAngle = currentAngle + turnAngle;
+          redParticle.vx = Math.cos(newAngle) * currentSpeed;
+          redParticle.vy = Math.sin(newAngle) * currentSpeed;
+        }
+        
+        // Kurvige Bewegung mit Sinuswellen
+        const speed = Math.sqrt(redParticle.vx*redParticle.vx + redParticle.vy*redParticle.vy);
+        const curve = Math.sin(redParticle.phase) * 2.5 + Math.sin(redParticle.phase * 2.3) * 1.5;
+        const perpX = -redParticle.vy / speed;
+        const perpY = redParticle.vx / speed;
         
         redParticle.x += redParticle.vx + perpX * curve;
         redParticle.y += redParticle.vy + perpY * curve;
+        
+        // Sanfte Abstoßung vom Rand - bleibt länger im sichtbaren Bereich
+        const margin = 80;
+        const pushStrength = 0.15;
+        if (redParticle.x < margin) redParticle.vx += pushStrength;
+        if (redParticle.x > W - margin) redParticle.vx -= pushStrength;
+        if (redParticle.y < margin) redParticle.vy += pushStrength;
+        if (redParticle.y > H - margin) redParticle.vy -= pushStrength;
         
         // Check capture
         const dx = cursorX - redParticle.x;
@@ -582,7 +607,7 @@
           redParticle.active = false;
           redParticleCatches++;
           
-          // Im inverted mode: Stack aufbauen statt nur +3 levels
+          // Im inverted mode: Stack aufbauen
           if (isInverted && redStackCount < MAX_RED_STACK) {
             redStackCount++;
             
@@ -591,12 +616,12 @@
               // MEGA BURST - goldene Partikel
               for (let i = 0; i < 100; i++) {
                 const angle = (i / 100) * Math.PI * 2;
-                const speed = 12 + Math.random() * 12;
+                const burstSpeed = 12 + Math.random() * 12;
                 particles.push({
                   x: redParticle.x,
                   y: redParticle.y,
-                  vx: Math.cos(angle) * speed,
-                  vy: Math.sin(angle) * speed,
+                  vx: Math.cos(angle) * burstSpeed,
+                  vy: Math.sin(angle) * burstSpeed,
                   life: 1.5,
                   hue: 45 // Gold
                 });
@@ -612,12 +637,12 @@
           // Roter Partikel-Burst
           for (let i = 0; i < 60; i++) {
             const angle = (i / 60) * Math.PI * 2;
-            const speed = 8 + Math.random() * 8;
+            const burstSpeed = 8 + Math.random() * 8;
             particles.push({
               x: redParticle.x,
               y: redParticle.y,
-              vx: Math.cos(angle) * speed,
-              vy: Math.sin(angle) * speed,
+              vx: Math.cos(angle) * burstSpeed,
+              vy: Math.sin(angle) * burstSpeed,
               life: 1.2,
               hue: 0
             });
@@ -636,25 +661,21 @@
             }, s * 50);
           }
           
-          // Nächster Red Particle spawnt solange inverted, nicht max stack, und nicht zu viele misses
-          if (isInverted && redStackCount < MAX_RED_STACK && redParticleMisses < MAX_RED_MISSES && cursorEnergy >= MAX_ENERGY) {
-            redParticleSpawnTime = Date.now() + 800;
+          // Nächster Red Particle spawnt nach längerer Pause
+          if (isInverted && redStackCount < MAX_RED_STACK && cursorEnergy >= MAX_ENERGY) {
+            redParticleSpawnTime = Date.now() + 1500; // 1.5s Pause
             redParticleActive = true;
           }
         }
         
-        // Off screen = MISS - neuer Versuch nur wenn noch Versuche übrig
-        if (redParticle.x < -50 || redParticle.x > W + 50 || redParticle.y < -50 || redParticle.y > H + 50) {
+        // Off screen - neuer Versuch nach Pause (kein Limit)
+        if (redParticle.x < -100 || redParticle.x > W + 100 || redParticle.y < -100 || redParticle.y > H + 100) {
           redParticle.active = false;
-          redParticleMisses++;
           
-          // Nur neuer Versuch wenn noch Misses übrig UND inverted
-          if (isInverted && redStackCount < MAX_RED_STACK && redParticleMisses < MAX_RED_MISSES && cursorEnergy >= MAX_ENERGY) {
-            redParticleSpawnTime = Date.now() + 400;
+          // Neuer Versuch nach längerer Pause
+          if (cursorEnergy >= MAX_ENERGY) {
+            redParticleSpawnTime = Date.now() + 2000; // 2s Pause nach Miss
             redParticleActive = true;
-          } else if (redParticleMisses >= MAX_RED_MISSES) {
-            // Max Misses erreicht - Red particle deaktivieren, User muss dischargen
-            redParticleActive = false;
           }
         }
         
@@ -920,7 +941,6 @@
           cursorEnergy = 0;
           redParticleActive = false;
           redParticleCatches = 0; // Reset für nächste Ladung
-          redParticleMisses = 0; // Reset misses für nächste Ladung
           redParticle.active = false;
         }
       });
@@ -1049,7 +1069,6 @@
             cursorEnergy = 0;
             redParticleActive = false;
             redParticleCatches = 0;
-            redParticleMisses = 0;
             redParticle.active = false;
           }
         }
