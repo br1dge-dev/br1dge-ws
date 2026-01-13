@@ -26,27 +26,60 @@
           linear-gradient(to right, #1a1a1a 1px, transparent 1px),
           linear-gradient(to bottom, #1a1a1a 1px, transparent 1px);
         background-size: 100px 100px;
-        opacity: 1;
+      }
+
+      .container {
+        position: relative;
+        z-index: 10;
       }
 
       .logo {
-        position: relative;
         width: 300px;
-        height: auto;
-        z-index: 10;
+        transition: transform 0.3s ease;
+      }
+
+      .logo:hover {
+        transform: scale(1.05);
       }
 
       .logo img {
         width: 100%;
         height: auto;
         display: block;
+        filter: grayscale(100%);
+        transition: filter 0.3s ease;
       }
+
+      .logo:hover img {
+        filter: grayscale(0%);
+      }
+
+      .corner {
+        position: fixed;
+        width: 40px;
+        height: 40px;
+        border: 2px solid #333;
+        z-index: 20;
+      }
+
+      .corner-tl { top: 20px; left: 20px; border-right: none; border-bottom: none; }
+      .corner-tr { top: 20px; right: 20px; border-left: none; border-bottom: none; }
+      .corner-bl { bottom: 20px; left: 20px; border-right: none; border-top: none; }
+      .corner-br { bottom: 20px; right: 20px; border-left: none; border-top: none; }
     </style>
   </head>
   <body>
     <div class="grid"></div>
-    <div class="logo">
-      <img src="/bridge-logo.png" alt="br1dge logo" />
+    
+    <div class="corner corner-tl"></div>
+    <div class="corner corner-tr"></div>
+    <div class="corner corner-bl"></div>
+    <div class="corner corner-br"></div>
+
+    <div class="container">
+      <div class="logo">
+        <img src="/bridge-logo.png" alt="br1dge logo" />
+      </div>
     </div>
   </body>
 </html>
