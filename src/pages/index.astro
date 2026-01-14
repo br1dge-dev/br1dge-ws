@@ -457,30 +457,61 @@
           });
         },
         
-        // Mini-bridge spawn - triumphant chime
+        // Mini-bridge spawn - triumphant chime (big bang effect)
         playBridgeSpawn() {
           if (!this.initialized || this.muted) return;
           const now = this.ctx.currentTime;
           
-          // G major arpeggio - triumphant
-          const chord = [392, 494, 587, 784]; // G4, B4, D5, G5
+          // Big bang: Low rumble + ascending chime
+          // Rumble
+          const rumble = this.ctx.createOscillator();
+          const rumbleGain = this.ctx.createGain();
+          rumble.type = 'sine';
+          rumble.frequency.setValueAtTime(60, now);
+          rumble.frequency.exponentialRampToValueAtTime(30, now + 0.3);
+          rumble.connect(rumbleGain);
+          rumbleGain.connect(this.masterGain);
+          rumbleGain.gain.setValueAtTime(0.15, now);
+          rumbleGain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+          rumble.start(now);
+          rumble.stop(now + 0.5);
           
+          // Ascending chime
+          const chord = [392, 494, 587, 784, 988]; // G4, B4, D5, G5, B5
           chord.forEach((freq, i) => {
             const osc = this.ctx.createOscillator();
             const gain = this.ctx.createGain();
-            
             osc.type = 'triangle';
-            osc.frequency.setValueAtTime(freq, now + i * 0.08);
-            
+            osc.frequency.setValueAtTime(freq, now + 0.1 + i * 0.06);
             osc.connect(gain);
             gain.connect(this.masterGain);
-            
+            gain.gain.setValueAtTime(0, now + 0.1 + i * 0.06);
+            gain.gain.linearRampToValueAtTime(0.1, now + 0.1 + i * 0.06 + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1 + i * 0.06 + 0.6);
+            osc.start(now + 0.1 + i * 0.06);
+            osc.stop(now + 0.1 + i * 0.06 + 0.7);
+          });
+        },
+        
+        // Collection complete - 5/5 particles collected
+        playCollectionComplete() {
+          if (!this.initialized || this.muted) return;
+          const now = this.ctx.currentTime;
+          
+          // Quick ascending ping
+          const notes = [523, 659, 784]; // C5, E5, G5
+          notes.forEach((freq, i) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, now + i * 0.08);
+            osc.connect(gain);
+            gain.connect(this.masterGain);
             gain.gain.setValueAtTime(0, now + i * 0.08);
-            gain.gain.linearRampToValueAtTime(0.08, now + i * 0.08 + 0.03);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.08 + 0.5);
-            
+            gain.gain.linearRampToValueAtTime(0.12, now + i * 0.08 + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.08 + 0.3);
             osc.start(now + i * 0.08);
-            osc.stop(now + i * 0.08 + 0.55);
+            osc.stop(now + i * 0.08 + 0.35);
           });
         },
         
@@ -647,12 +678,13 @@
       const chamberParticles = [];        // Gefangene Partikel in der Kammer
       const CHAMBER_THRESHOLD = 5;        // Anzahl zum Spawnen eines Mini-Bridge
       const CHAMBER_RADIUS = 12;          // Radius der Kammer im Cursor
-      const CHAMBER_COLORS = [
-        '#39ff14',  // Neongrün (Electric Lime)
-        '#ff6b35',  // Orange (Coral Flame)  
-        '#d4a574',  // Hellbraun/Sand (Desert Gold)
-        '#ff2222'   // Rot (für Red Particle Integration)
+      // Sequential color order: Orange -> Brown -> Green
+      const CHAMBER_COLORS_SEQUENCE = [
+        '#ff6b35',  // 1. Orange (Coral Flame)
+        '#d4a574',  // 2. Hellbraun/Sand (Desert Gold)
+        '#39ff14'   // 3. Neongrün (Electric Lime)
       ];
+      const CHAMBER_COLORS = [...CHAMBER_COLORS_SEQUENCE, '#ff2222']; // + Rot
       
       // Color to URL mapping for clickable bridges
       const COLOR_URLS = {
@@ -661,10 +693,9 @@
         '#d4a574': 'https://wocl.br1dge.xyz/'            // Hellbraun/Sand
       };
       
-      // Track spawned bridges per color (max 1 per color = 3 total)
-      const spawnedBridgeColors = new Set();
-      const MAX_BRIDGES_PER_COLOR = 1;
-      const TOTAL_BRIDGE_COLORS = 3;  // Neongrün, Orange, Sand (nicht Rot)
+      // Current phase: 0 = orange, 1 = brown, 2 = green, 3 = complete
+      let currentColorPhase = 0;
+      const RINGS_PER_PHASE = [3, 4, 5]; // Rings available per phase
       
       // Colored particles flying in space (to be caught)
       const coloredParticles = [];
@@ -674,13 +705,17 @@
       const floatingBridges = [];
       
       // Chamber state
-      let chamberActive = false;          // Wird true wenn cursorEnergy >= MAX_ENERGY
-      let chamberSpawnPhase = 0;          // Für Spawn-Animation
-      let prevCursorX = 0;                // Für Trägheits-Berechnung
+      let chamberActive = false;
+      let chamberSpawnPhase = 0;
+      let prevCursorX = 0;
       let prevCursorY = 0;
       
+      // Logo ready for discharge (vibration state)
+      let logoReadyForDischarge = false;
+      let logoVibrationTime = 0;
+      
       // Phase tracking: colored bridges first, then red particles
-      let coloredBridgePhaseComplete = false;  // True when all 3 colored bridges spawned
+      let coloredBridgePhaseComplete = false;
       
       // Game complete state (für Restart-Button nach Modal)
       let gameCompleted = false;
@@ -746,8 +781,9 @@
         chamberActive = false;
         coloredParticles.length = 0;
         floatingBridges.length = 0;
-        spawnedBridgeColors.clear();
         coloredBridgePhaseComplete = false;
+        currentColorPhase = 0;
+        logoReadyForDischarge = false;
         
         // Entferne Restart-Button falls vorhanden
         const existingBtn = document.getElementById('restart-overlay-btn');
@@ -977,7 +1013,7 @@
         }
       }
       
-      // Draw the logo - CLEAN, MINIMAL, ALWAYS CENTERED
+      // Draw the logo - CLEAN, MINIMAL, ALWAYS CENTERED + VIBRATION
       function drawLogo() {
         const time = Date.now() / 1000;
         // Feste Basis-Schriftgröße - Skalierung nur über ctx.scale()
@@ -999,8 +1035,17 @@
         const exactCenterX = W / 2;
         const exactCenterY = H / 2;
         
+        // Vibration wenn ready for discharge
+        let vibrationX = 0, vibrationY = 0;
+        if (logoReadyForDischarge) {
+          const vibTime = (Date.now() - logoVibrationTime) / 1000;
+          const vibIntensity = Math.min(1, vibTime * 2) * 1.5; // Ramp up
+          vibrationX = Math.sin(vibTime * 60) * vibIntensity;
+          vibrationY = Math.cos(vibTime * 73) * vibIntensity * 0.7;
+        }
+        
         ctx.save();
-        ctx.translate(exactCenterX, exactCenterY);
+        ctx.translate(exactCenterX + vibrationX, exactCenterY + vibrationY);
         ctx.scale(totalScale, totalScale);
         
         // Feste Schriftgröße - Skalierung passiert über ctx.scale()
@@ -1044,6 +1089,22 @@
         // Haupt-Symbol - weiß
         ctx.fillStyle = '#ffffff';
         ctx.fillText('∩', 0, 0);
+        
+        // Draw bridges that are "behind" the logo (inverted/black on white logo)
+        for (const bridge of floatingBridges) {
+          if (bridge.isBehind) {
+            // Calculate position relative to logo center
+            const relX = (bridge.x - exactCenterX) / totalScale;
+            const relY = (bridge.y - exactCenterY) / totalScale;
+            
+            // Draw smaller, darker (inverted effect)
+            ctx.font = `bold ${(bridge.currentSize || 10) * 2}px "SF Pro Display", system-ui, sans-serif`;
+            ctx.fillStyle = '#000000'; // Black on white logo = inverted
+            ctx.globalAlpha = 0.6;
+            ctx.fillText('∩', relX, relY);
+            ctx.globalAlpha = 1;
+          }
+        }
         
         ctx.restore();
         
@@ -1401,19 +1462,24 @@
       }
       
       // ========================================
-      // COLORED PARTICLES - Spawn when fully charged
+      // COLORED PARTICLES - Sequential spawn (orange->brown->green)
       // ========================================
       function drawColoredParticles() {
         const time = Date.now() / 1000;
         
-        // Skip wenn Colored Bridge Phase abgeschlossen
-        if (coloredBridgePhaseComplete) {
+        // Skip wenn alle 3 Phasen abgeschlossen
+        if (currentColorPhase >= 3) {
+          coloredBridgePhaseComplete = true;
           return;
         }
         
-        // Nur spawnen wenn voll geladen
-        if (cursorEnergy < MAX_ENERGY) {
-          coloredParticleSpawnTime = Date.now() + 2000; // Reset spawn timer (2 Sekunden)
+        // Verfügbare Ringe für aktuelle Phase
+        const availableRings = RINGS_PER_PHASE[currentColorPhase];
+        const maxEnergy = availableRings / 5; // 3/5 = 0.6, 4/5 = 0.8, 5/5 = 1.0
+        
+        // Nur spawnen wenn genug geladen (basierend auf verfügbaren Ringen)
+        if (cursorEnergy < maxEnergy) {
+          coloredParticleSpawnTime = Date.now() + 2000;
           return;
         }
         
@@ -1423,23 +1489,23 @@
           chamberSpawnPhase = 0;
         }
         
-        // Ermittle welche Farben noch fehlen
-        const missingColors = CHAMBER_COLORS.slice(0, 3).filter(c => !spawnedBridgeColors.has(c));
-        
-        // Wenn alle Farben gespawnt wurden, Phase beenden
-        if (missingColors.length === 0) {
-          coloredBridgePhaseComplete = true;
-          return;
+        // Check ob 5 Partikel gesammelt - Logo ready for discharge
+        if (chamberParticles.length >= CHAMBER_THRESHOLD && !logoReadyForDischarge) {
+          logoReadyForDischarge = true;
+          logoVibrationTime = Date.now();
+          // Audio feedback: Collection complete
+          AudioSystem.playCollectionComplete();
         }
         
+        // Aktuelle Farbe für diese Phase
+        const currentColor = CHAMBER_COLORS_SEQUENCE[currentColorPhase];
+        
         // Spawn farbige Partikel (alle 2 Sekunden)
-        // Mehr Partikel gleichzeitig erlaubt (bis zu 3)
         if (Date.now() > coloredParticleSpawnTime && 
-            coloredParticles.length < 3 && 
+            coloredParticles.length < 2 && 
             chamberParticles.length < CHAMBER_THRESHOLD) {
           
-          // Wähle eine noch fehlende Farbe
-          const color = missingColors[Math.floor(Math.random() * missingColors.length)];
+          const color = currentColor;
           
           // Spawn von zufälligem Rand
           const edge = Math.floor(Math.random() * 4);
@@ -1670,21 +1736,36 @@
         ctx.save();
         ctx.translate(cursorX, cursorY);
         
-        // === POWER METER - Solid Rings, cyan für red stacks (invertiert = rot) ===
+        // === POWER METER - Rings with unlock system ===
         const totalLayers = 5;
         const energyPerLayer = MAX_ENERGY / totalLayers;
         
+        // Available rings based on current phase (3 -> 4 -> 5)
+        const unlockedRings = currentColorPhase >= 3 ? 5 : RINGS_PER_PHASE[currentColorPhase];
+        
         for (let layer = 0; layer < totalLayers; layer++) {
+          const ringRadius = cursorSize + 5 + layer * 5;
+          const ringWidth = 4;
+          
+          // Check if ring is unlocked
+          const isUnlocked = layer < unlockedRings;
+          
+          if (!isUnlocked) {
+            // Locked ring - very faint outline
+            ctx.beginPath();
+            ctx.arc(0, 0, ringRadius, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+            ctx.lineWidth = ringWidth;
+            ctx.lineCap = 'butt';
+            ctx.stroke();
+            continue;
+          }
+          
           const layerStart = layer * energyPerLayer;
           const layerProgress = Math.max(0, Math.min(1, (cursorEnergy - layerStart) / energyPerLayer));
           if (layerProgress <= 0) continue;
           
-          const ringRadius = cursorSize + 5 + layer * 5;
-          const ringWidth = 4;
-          
           // Ringe von außen nach innen cyan färben basierend auf redStackCount
-          // Layer 4 (außen) = redStackCount >= 1, Layer 3 = >= 2, etc.
-          // Cyan (#00ffff) wird invertiert zu Rot (#ff0000)
           const isStackedRing = redStackCount >= (totalLayers - layer);
           
           ctx.beginPath();
@@ -1788,94 +1869,92 @@
       }
       
       // ========================================
-      // MINI-BRIDGE SPAWN - Aus Kammer-Partikeln
+      // MINI-BRIDGE SPAWN - Big Bang from Logo Center
       // ========================================
       function spawnMiniBridge() {
-        // Dominante Farbe ermitteln (häufigste Farbe in der Kammer, ohne Rot)
-        const colorCounts = {};
-        for (const p of chamberParticles) {
-          // Nur nicht-rote Farben zählen für die Bridge-Farbe
-          if (p.color !== '#ff2222') {
-            colorCounts[p.color] = (colorCounts[p.color] || 0) + 1;
-          }
-        }
+        // Aktuelle Farbe für diese Phase
+        const dominantColor = CHAMBER_COLORS_SEQUENCE[currentColorPhase];
         
-        // Finde dominante Farbe (nur aus den 3 Basis-Farben)
-        let dominantColor = null;
-        let maxCount = 0;
-        for (const [color, count] of Object.entries(colorCounts)) {
-          if (count > maxCount) {
-            maxCount = count;
-            dominantColor = color;
-          }
-        }
-        
-        // Wenn keine farbigen Partikel (nur rote), keine Bridge spawnen
-        if (!dominantColor) {
-          chamberParticles.length = 0;
-          return;
-        }
-        
-        // Track diese Farbe als gespawnt
-        spawnedBridgeColors.add(dominantColor);
-        
-        // Prüfe ob alle 3 Farben gespawnt wurden
-        if (spawnedBridgeColors.size >= TOTAL_BRIDGE_COLORS) {
-          coloredBridgePhaseComplete = true;
-        }
-        
-        // Audio & Haptic: Mini-Bridge Spawn - triumphant chime
+        // Audio & Haptic: Mini-Bridge Spawn - big bang effect
         AudioSystem.playBridgeSpawn();
         HapticManager.levelUp();
         
         // URL für diese Farbe
         const url = COLOR_URLS[dominantColor] || null;
         
-        // Mini-Bridge erstellen
+        const logoX = W / 2;
+        const logoY = H / 2;
+        
+        // Mini-Bridge erstellen - spawnt vom Logo-Zentrum
         const spawnAngle = Math.random() * Math.PI * 2;
-        const spawnSpeed = 2 + Math.random() * 2;
+        const spawnSpeed = 4 + Math.random() * 3; // Schneller für Big Bang
+        
+        // 3D orbit angle für depth simulation
+        const orbitAngle = (floatingBridges.length * Math.PI * 2 / 3) + Math.random() * 0.5;
         
         floatingBridges.push({
-          x: cursorX,
-          y: cursorY,
+          x: logoX,
+          y: logoY,
           vx: Math.cos(spawnAngle) * spawnSpeed,
           vy: Math.sin(spawnAngle) * spawnSpeed,
           color: dominantColor,
-          url: url,  // URL für Click
-          size: 10,  // Base size
-          rotation: 0,  // Keine Rotation mehr
+          url: url,
+          size: 10,
+          rotation: 0,
           rotationSpeed: 0,
           phase: Math.random() * Math.PI * 2,
+          orbitAngle: orbitAngle, // For 3D orbit simulation
+          orbitSpeed: 0.008 + Math.random() * 0.004,
           alpha: 1,
           birthTime: Date.now(),
-          hitRadius: 20  // Für Click-Detection
+          hitRadius: 25
         });
         
-        // Partikel-Burst aus der Kammer
-        for (let i = 0; i < 30; i++) {
-          const angle = (i / 30) * Math.PI * 2;
-          const burstSpeed = 5 + Math.random() * 5;
+        // BIG BANG Partikel-Burst vom Logo
+        const burstCount = 60 + currentColorPhase * 20; // Mehr Partikel pro Phase
+        for (let i = 0; i < burstCount; i++) {
+          const angle = (i / burstCount) * Math.PI * 2;
+          const burstSpeed = 8 + Math.random() * 10;
           particles.push({
-            x: cursorX,
-            y: cursorY,
+            x: logoX,
+            y: logoY,
             vx: Math.cos(angle) * burstSpeed,
             vy: Math.sin(angle) * burstSpeed,
-            life: 1,
+            life: 1.2,
             hue: colorToHue(dominantColor)
           });
         }
         
-        // Ripple
-        ripples.push({
-          x: cursorX,
-          y: cursorY,
-          size: 20,
-          alpha: 1,
-          hue: colorToHue(dominantColor)
-        });
+        const logoX2 = W / 2;
+        const logoY2 = H / 2;
         
-        // Kammer leeren
+        // Multiple Shockwaves from logo - big bang effect
+        for (let s = 0; s < 5; s++) {
+          setTimeout(() => {
+            ripples.push({
+              x: logoX2,
+              y: logoY2,
+              size: 10 + s * 15,
+              alpha: 1 - s * 0.15,
+              hue: colorToHue(dominantColor)
+            });
+          }, s * 60);
+        }
+        
+        // Logo scale punch
+        logoTargetScale = 1.3;
+        setTimeout(() => { logoTargetScale = 1; }, 200);
+        
+        // Kammer leeren und Phase weiter
         chamberParticles.length = 0;
+        cursorEnergy = 0;
+        logoReadyForDischarge = false;
+        currentColorPhase++;
+        
+        // Check if all phases complete
+        if (currentColorPhase >= 3) {
+          coloredBridgePhaseComplete = true;
+        }
       }
       
       // Helper: Hex-Color zu HSL Hue
@@ -1924,9 +2003,21 @@
           }
         }
         
+        // Update canvas cursor style based on hover
+        if (hoveredBridgeIndex >= 0) {
+          canvas.style.cursor = 'pointer';
+        } else {
+          canvas.style.cursor = 'none';
+        }
+        
         for (let i = floatingBridges.length - 1; i >= 0; i--) {
           const bridge = floatingBridges[i];
           const isHovered = (i === hoveredBridgeIndex);
+          
+          // 3D Orbit simulation
+          if (bridge.orbitAngle !== undefined) {
+            bridge.orbitAngle += bridge.orbitSpeed || 0.01;
+          }
           
           // Orbit-Logik: Sanfte Anziehung zum Logo-Zentrum + tangentiale Bewegung
           const dxLogo = logoX - bridge.x;
@@ -1934,37 +2025,37 @@
           const distLogo = Math.sqrt(dxLogo * dxLogo + dyLogo * dyLogo);
           
           // Ziel-Orbit-Radius (loser Orbit, nicht zu nah)
-          const targetOrbitRadius = 180 + (i * 40); // Verschiedene Orbits pro Bridge
+          const targetOrbitRadius = 150 + (i * 50);
           
           // Speed-Multiplikator (langsamer bei Hover)
-          const speedMult = isHovered ? 0.2 : 1.0;
+          const speedMult = isHovered ? 0.15 : 1.0;
           
           // Orbit-Kraft: Ziehe zur Orbit-Linie
           if (distLogo > 10) {
             const orbitError = distLogo - targetOrbitRadius;
-            const pullStrength = orbitError * 0.0008 * speedMult;
+            const pullStrength = orbitError * 0.001 * speedMult;
             bridge.vx += (dxLogo / distLogo) * pullStrength;
             bridge.vy += (dyLogo / distLogo) * pullStrength;
             
             // Tangentiale Bewegung (im Uhrzeigersinn)
             const tangentX = -dyLogo / distLogo;
             const tangentY = dxLogo / distLogo;
-            const tangentSpeed = 0.015 * speedMult;
+            const tangentSpeed = 0.02 * speedMult;
             bridge.vx += tangentX * tangentSpeed;
             bridge.vy += tangentY * tangentSpeed;
           }
           
           // Sanfte Phase für leichte Wellen
           bridge.phase += 0.01 * speedMult;
-          const wave = Math.sin(bridge.phase) * 0.3;
+          const wave = Math.sin(bridge.phase) * 0.2;
           
-          // Position Update (LANGSAMER)
+          // Position Update
           bridge.x += (bridge.vx + wave) * speedMult;
           bridge.y += (bridge.vy + wave * 0.5) * speedMult;
           
           // Starke Dämpfung für sanfte Bewegung
-          bridge.vx *= 0.96;
-          bridge.vy *= 0.96;
+          bridge.vx *= 0.97;
+          bridge.vy *= 0.97;
           
           // Sanftes Bouncing von Rändern
           const margin = 80;
@@ -1977,6 +2068,20 @@
           const breath = 1 + Math.sin(time * 1.5 + bridge.phase) * 0.08;
           const size = bridge.size * breath;
           
+          // 3D depth: Calculate if bridge is "behind" the logo
+          const orbitAngle = bridge.orbitAngle || 0;
+          const depth = Math.sin(orbitAngle); // -1 to 1, negative = behind
+          const isBehind = depth < 0;
+          
+          // Skip drawing if behind - will be drawn inverted on logo later
+          bridge.isBehind = isBehind;
+          bridge.currentSize = size;
+          
+          if (isBehind) {
+            // Don't draw here - will be drawn on logo
+            continue;
+          }
+          
           // Hover-Effekt: leicht größer
           const hoverScale = isHovered ? 1.15 : 1.0;
           
@@ -1988,7 +2093,7 @@
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillStyle = bridge.color;
-          ctx.globalAlpha = isHovered ? 1 : 0.9;
+          ctx.globalAlpha = isHovered ? 1 : 0.85;
           ctx.fillText('∩', 0, 0);
           ctx.globalAlpha = 1;
           
@@ -2083,8 +2188,14 @@
           hue: 0
         });
         
-        // Nur wenn auf Logo geklickt UND Threshold erreicht
-        if (dist < logoRadius && cursorEnergy >= ENERGY_THRESHOLD && upgradeLevel < 10) {
+        // CHAMBER DISCHARGE: Wenn Logo ready und auf Logo geklickt
+        if (dist < logoRadius && logoReadyForDischarge && chamberParticles.length >= CHAMBER_THRESHOLD) {
+          spawnMiniBridge();
+          return;
+        }
+        
+        // Nur wenn auf Logo geklickt UND Threshold erreicht UND nicht in Chamber-Phase
+        if (dist < logoRadius && cursorEnergy >= ENERGY_THRESHOLD && upgradeLevel < 10 && coloredBridgePhaseComplete) {
           let levelsToAdd = 1;
           let isMaxStack = false;
           const prevLevel = upgradeLevel;
