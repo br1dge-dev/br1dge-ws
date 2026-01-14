@@ -1550,7 +1550,7 @@
           }
           
           // Draw - Asteroid-Style mit dezentem Schweif
-          const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+          const particleSpeed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
           
           // Asteroid Core - leicht unregelmäßige Form simulieren
           ctx.beginPath();
@@ -1559,10 +1559,10 @@
           ctx.fill();
           
           // Dezenter Schweif (Gradient-artig, mehrere Punkte)
-          const trailLength = Math.min(speed * 4, 25);
+          const trailLength = Math.min(particleSpeed * 4, 25);
           const trailSteps = 5;
-          const dirX = p.vx / (speed + 0.01);
-          const dirY = p.vy / (speed + 0.01);
+          const dirX = p.vx / (particleSpeed + 0.01);
+          const dirY = p.vy / (particleSpeed + 0.01);
           
           for (let t = 1; t <= trailSteps; t++) {
             const trailAlpha = p.alpha * 0.15 * (1 - t / trailSteps);
