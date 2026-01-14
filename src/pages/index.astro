@@ -618,6 +618,7 @@
           modal.remove();
           modalShown = false;
           // Restart-Button unter Logo anzeigen (nur bei Level 10)
+          console.log('closeModal timeout, gameCompleted:', gameCompleted);
           if (gameCompleted) {
             showRestartButton();
           }
@@ -645,6 +646,7 @@
       }
       
       function showRestartButton() {
+        console.log('showRestartButton called, gameCompleted:', gameCompleted);
         // Entferne vorherigen falls vorhanden
         const existingBtn = document.getElementById('restart-overlay-btn');
         if (existingBtn) existingBtn.remove();
