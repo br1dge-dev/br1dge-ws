@@ -697,6 +697,11 @@
       let currentColorPhase = 0;
       const RINGS_PER_PHASE = [3, 4, 5]; // Rings available per phase
       
+      // Idle mode - cursor must move for progression
+      let lastMouseMoveTime = Date.now();
+      let isIdle = false;
+      const IDLE_TIMEOUT = 1500; // 1.5s ohne Bewegung = idle
+      
       // Colored particles flying in space (to be caught)
       const coloredParticles = [];
       let coloredParticleSpawnTime = 0;
@@ -1232,8 +1237,8 @@
             }
           }
           
-          // Partikel wird vom Cursor absorbiert - nur wenn nicht voll
-          if (dist < 20 && !p.absorbed && cursorEnergy < MAX_ENERGY) {
+          // Partikel wird vom Cursor absorbiert - nur wenn nicht voll UND nicht idle
+          if (dist < 20 && !p.absorbed && cursorEnergy < MAX_ENERGY && !isIdle) {
             p.absorbed = true;
             const prevEnergy = cursorEnergy;
             cursorEnergy = Math.min(MAX_ENERGY, cursorEnergy + 0.008);
@@ -1754,14 +1759,16 @@
           
           ctx.beginPath();
           ctx.arc(0, 0, ringRadius, -Math.PI/2, -Math.PI/2 + layerProgress * Math.PI * 2);
-          ctx.strokeStyle = isStackedRing ? '#00ffff' : '#ffffff';
+          // Idle = grau, sonst normal
+          ctx.strokeStyle = isIdle ? '#555555' : (isStackedRing ? '#00ffff' : '#ffffff');
           ctx.lineWidth = ringWidth;
           ctx.lineCap = 'butt';
           ctx.stroke();
         }
         
-        // === CHAMBER (Gravitationsgefängnis) - nur wenn voll geladen ===
-        if (cursorEnergy >= MAX_ENERGY && chamberActive) {
+        // === CHAMBER (Gravitationsgefängnis) - ab 20% charge (1 Ring) ===
+        const chamberOpenThreshold = 0.2;
+        if (cursorEnergy >= chamberOpenThreshold && chamberActive) {
           const chamberOuterRadius = cursorSize;
           const chamberInnerRadius = cursorSize - CHAMBER_RADIUS;
           
@@ -1769,7 +1776,7 @@
           ctx.beginPath();
           ctx.arc(0, 0, chamberOuterRadius, 0, Math.PI * 2);
           ctx.arc(0, 0, Math.max(2, chamberInnerRadius), 0, Math.PI * 2, true); // Loch
-          ctx.fillStyle = '#ffffff';
+          ctx.fillStyle = isIdle ? '#555555' : '#ffffff';
           ctx.fill();
           
           // Füllstandsanzeige im Kammer-Rand (optional: subtiler Glow basierend auf Füllstand)
@@ -1845,11 +1852,6 @@
         }
         
         ctx.restore();
-        
-        // === CHECK THRESHOLD - Mini-Bridge Spawn ===
-        if (chamberParticles.length >= CHAMBER_THRESHOLD) {
-          spawnMiniBridge();
-        }
       }
       
       // ========================================
@@ -2055,6 +2057,12 @@
           ctx.fillStyle = bridge.color;
           ctx.globalAlpha = isHovered ? 1 : 0.85;
           ctx.fillText('∩', 0, 0);
+          
+          // "i" superscript als Hinweis auf Interaktivität
+          ctx.font = `${size * 1.5 * hoverScale}px "SF Pro Display", system-ui, sans-serif`;
+          ctx.fillStyle = bridge.color;
+          ctx.globalAlpha = isHovered ? 0.9 : 0.5;
+          ctx.fillText('ⁱ', size * 2.2, -size * 1.2);
           ctx.globalAlpha = 1;
           
           ctx.restore();
@@ -2082,14 +2090,19 @@
         ctx.fillRect(0, 0, W, H);
         
         drawGrid();
-        drawFloatingBridges();   // Hinter allem anderen
+        // Check idle state
+        if (Date.now() - lastMouseMoveTime > IDLE_TIMEOUT) {
+          isIdle = true;
+        }
+        
+        drawFloatingBridges();
         drawAmbientParticles();
-        drawColoredParticles();  // Farbige Partikel (Chamber-System)
+        drawColoredParticles();
         drawRedParticle();
         drawParticles();
         drawLogo();
         drawRipples();
-        drawCursor();            // Cursor mit Kammer zuletzt
+        drawCursor();
         drawScanlines();
         
         requestAnimationFrame(render);
@@ -2101,6 +2114,8 @@
       document.addEventListener('mousemove', (e) => {
         mouseX = e.clientX;
         mouseY = e.clientY;
+        lastMouseMoveTime = Date.now();
+        isIdle = false;
       });
       
       // Click auf Logo = ENERGIE EXPLOSION (nur wenn Threshold erreicht)
