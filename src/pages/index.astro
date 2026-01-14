@@ -37,9 +37,9 @@
     <meta name="twitter:image:alt" content="br1dge ∩ logo on black background" />
     
     <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; cursor: none !important; }
-      html, body { height: 100%; width: 100%; overflow: hidden; background: #000; cursor: none !important; }
-      #canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; cursor: none !important; }
+      * { margin: 0; padding: 0; box-sizing: border-box; cursor: none; }
+      html, body { height: 100%; width: 100%; overflow: hidden; background: #000; cursor: none; }
+      #canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; }
       #sound-toggle {
         position: fixed;
         bottom: 1.2rem;
@@ -78,7 +78,7 @@
         letter-spacing: 0.25em;
         color: rgba(255, 255, 255, 0.5);
         pointer-events: auto;
-        cursor: none !important;
+        cursor: none;
         display: flex;
         align-items: center;
         gap: 0.08em;
@@ -1598,44 +1598,19 @@
             continue;
           }
           
-          // Draw - Intensiver Asteroid mit Schweif
-          const particleSpeed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
-          const dirX = p.vx / (particleSpeed + 0.01);
-          const dirY = p.vy / (particleSpeed + 0.01);
+          // Draw - Scharfer, intensiver Punkt ohne Schweif
           
-          // Subtiler Glow
+          // Kleiner Glow für Tiefe
           ctx.beginPath();
-          ctx.arc(p.x, p.y, p.size * 2, 0, Math.PI * 2);
-          ctx.fillStyle = hexToRgba(p.color, 0.15);
+          ctx.arc(p.x, p.y, p.size * 1.5, 0, Math.PI * 2);
+          ctx.fillStyle = hexToRgba(p.color, 0.2);
           ctx.fill();
           
-          // Asteroid Core - volle Intensität
+          // Scharfer Core - volle Intensität
           ctx.beginPath();
-          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.arc(p.x, p.y, p.size * 0.8, 0, Math.PI * 2);
           ctx.fillStyle = p.color;
           ctx.fill();
-          
-          // Schweif (ausfadend)
-          const trailLength = Math.min(particleSpeed * 6, 30);
-          const trailSteps = 6;
-          
-          for (let t = 1; t <= trailSteps; t++) {
-            const trailAlpha = 0.5 * (1 - t / trailSteps);
-            const trailSize = p.size * (0.7 - t * 0.1);
-            const trailDist = (t / trailSteps) * trailLength;
-            
-            if (trailSize > 0) {
-              ctx.beginPath();
-              ctx.arc(
-                p.x - dirX * trailDist,
-                p.y - dirY * trailDist,
-                Math.max(0.3, trailSize),
-                0, Math.PI * 2
-              );
-              ctx.fillStyle = hexToRgba(p.color, trailAlpha);
-              ctx.fill();
-            }
-          }
         }
       }
       
@@ -1931,6 +1906,14 @@
         logoTargetScale = 1.3;
         setTimeout(() => { logoTargetScale = 1; }, 200);
         
+        // PROGRESS: Level erhöhen bei Discharge
+        if (upgradeLevel < 10) {
+          upgradeLevel++;
+          logoBaseScale += 0.18;
+          AudioSystem.playLevelUp(upgradeLevel);
+          HapticManager.levelUp();
+        }
+        
         // Kammer leeren und Phase weiter
         chamberParticles.length = 0;
         cursorEnergy = 0;
@@ -1989,7 +1972,12 @@
           }
         }
         
-        // Cursor bleibt immer none (custom cursor gezeichnet)
+        // Cursor-Type basierend auf Bridge-Hover
+        if (hoveredBridgeIndex >= 0) {
+          canvas.style.cursor = 'pointer';
+        } else {
+          canvas.style.cursor = 'none';
+        }
         
         for (let i = floatingBridges.length - 1; i >= 0; i--) {
           const bridge = floatingBridges[i];
@@ -2058,11 +2046,11 @@
           ctx.globalAlpha = isHovered ? 1 : 0.85;
           ctx.fillText('∩', 0, 0);
           
-          // "i" superscript als Hinweis auf Interaktivität
-          ctx.font = `${size * 1.5 * hoverScale}px "SF Pro Display", system-ui, sans-serif`;
+          // "i" superscript als Hinweis auf Interaktivität - größer, fetter, näher
+          ctx.font = `bold ${size * 2.5 * hoverScale}px "SF Pro Display", system-ui, sans-serif`;
           ctx.fillStyle = bridge.color;
-          ctx.globalAlpha = isHovered ? 0.9 : 0.5;
-          ctx.fillText('ⁱ', size * 2.2, -size * 1.2);
+          ctx.globalAlpha = isHovered ? 1 : 0.6;
+          ctx.fillText('ⁱ', size * 1.6, -size * 0.8);
           ctx.globalAlpha = 1;
           
           ctx.restore();
@@ -2093,6 +2081,10 @@
         // Check idle state
         if (Date.now() - lastMouseMoveTime > IDLE_TIMEOUT) {
           isIdle = true;
+          // Langsamer Discharge im Idle
+          if (cursorEnergy > 0) {
+            cursorEnergy = Math.max(0, cursorEnergy - 0.002);
+          }
         }
         
         drawFloatingBridges();
