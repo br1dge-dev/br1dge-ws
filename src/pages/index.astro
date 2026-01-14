@@ -618,7 +618,6 @@
           modal.remove();
           modalShown = false;
           // Restart-Button unter Logo anzeigen (nur bei Level 10)
-          console.log('closeModal timeout, gameCompleted:', gameCompleted);
           if (gameCompleted) {
             showRestartButton();
           }
@@ -646,7 +645,6 @@
       }
       
       function showRestartButton() {
-        console.log('showRestartButton called, gameCompleted:', gameCompleted, 'W:', W, 'H:', H, 'logoBaseScale:', logoBaseScale);
         // Entferne vorherigen falls vorhanden
         const existingBtn = document.getElementById('restart-overlay-btn');
         if (existingBtn) existingBtn.remove();
@@ -654,10 +652,9 @@
         const btn = document.createElement('button');
         btn.id = 'restart-overlay-btn';
         btn.textContent = 'RESTART';
-        // Offset basiert auf Logo-Größe bei Level 10
-        const logoSize = Math.min(W, H) * 0.18 * logoBaseScale;
-        const buttonOffset = logoSize + 30; // Logo-Größe + etwas Abstand
-        console.log('buttonOffset:', buttonOffset);
+        // Fester Offset unter dem Logo (Logo ist bei 50%, Button darunter)
+        const logoVisualSize = Math.min(W, H) * 0.18; // Basis-Logo-Größe ohne Scale
+        const buttonOffset = logoVisualSize + 60; // Unter dem Logo mit Abstand
         btn.style.cssText = `
           position: fixed;
           left: 50%;
