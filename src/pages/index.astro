@@ -864,15 +864,16 @@
           <button id="close-btn" style="position: absolute; top: 2rem; right: 2rem; background: transparent; border: none; color: #000; font-size: 1.5rem; cursor: none; padding: 0.5rem; opacity: 0.4; transition: opacity 0.3s;">✕</button>
           
           <div style="font-size: 7rem; font-weight: 100; margin-bottom: 0.5rem; letter-spacing: -0.05em;">∩</div>
-          <h1 style="font-size: 2rem; font-weight: 200; margin-bottom: 1rem; letter-spacing: 0.3em; text-transform: uppercase;">Level 10</h1>
+          <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+            <h1 style="font-size: 2rem; font-weight: 200; letter-spacing: 0.3em; text-transform: uppercase; margin: 0;">Level 10</h1>
+            <button id="restart-btn" style="background: transparent; border: none; color: rgba(0,0,0,0.3); font-size: 0.9rem; cursor: none; transition: all 0.3s; font-family: inherit;" title="Restart">↻</button>
+          </div>
           <p style="font-size: 0.9rem; margin-bottom: 2rem; opacity: 0.5; font-weight: 300;">Good job! You may now follow me</p>
           
           <div style="display: flex; gap: 1.2rem; margin-bottom: 1.5rem;">
             <a href="https://x.com/br1dge_eth" target="_blank" class="modal-link" style="color: #000; text-decoration: none; font-size: 0.9rem; padding: 0.7rem 1.8rem; border: 1px solid rgba(0,0,0,0.2); transition: all 0.3s; letter-spacing: 0.1em;">X / TWITTER</a>
             <a href="https://farcaster.xyz/br1dge" target="_blank" class="modal-link" style="color: #000; text-decoration: none; font-size: 0.9rem; padding: 0.7rem 1.8rem; border: 1px solid rgba(0,0,0,0.2); transition: all 0.3s; letter-spacing: 0.1em;">FARCASTER</a>
           </div>
-          
-          <button id="restart-btn" style="background: transparent; border: 1px solid rgba(0,0,0,0.15); color: rgba(0,0,0,0.4); padding: 0.5rem 1.2rem; font-size: 0.75rem; cursor: none; transition: all 0.3s; letter-spacing: 0.15em; font-family: inherit; margin-bottom: 1.5rem;">RESTART</button>
           
           <details id="projects-details" style="width: 100%; max-width: 320px; margin-bottom: 2rem;">
             <summary style="font-size: 0.7rem; font-weight: 400; letter-spacing: 0.2em; opacity: 0.5; text-transform: uppercase; cursor: pointer; list-style: none; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
@@ -1090,22 +1091,6 @@
         ctx.fillStyle = '#ffffff';
         ctx.fillText('∩', 0, 0);
         
-        // Draw bridges that are "behind" the logo (inverted/black on white logo)
-        for (const bridge of floatingBridges) {
-          if (bridge.isBehind) {
-            // Calculate position relative to logo center
-            const relX = (bridge.x - exactCenterX) / totalScale;
-            const relY = (bridge.y - exactCenterY) / totalScale;
-            
-            // Draw smaller, darker (inverted effect)
-            ctx.font = `bold ${(bridge.currentSize || 10) * 2}px "SF Pro Display", system-ui, sans-serif`;
-            ctx.fillStyle = '#000000'; // Black on white logo = inverted
-            ctx.globalAlpha = 0.6;
-            ctx.fillText('∩', relX, relY);
-            ctx.globalAlpha = 1;
-          }
-        }
-        
         ctx.restore();
         
         // Level Anzeige rechts unten
@@ -1315,7 +1300,7 @@
         // Spawn nach Timer
         if (redParticleActive && !redParticle.active && Date.now() > redParticleSpawnTime) {
           const edge = Math.floor(Math.random() * 4);
-          const speed = 3 + Math.random() * 2; // Langsamer für längeres Verweilen
+          const speed = 2 + Math.random() * 1.5; // Langsamer (2-3.5 statt 3-5)
           switch(edge) {
             case 0: redParticle.x = Math.random() * W; redParticle.y = -10; break;
             case 1: redParticle.x = W + 10; redParticle.y = Math.random() * H; break;
@@ -1445,20 +1430,48 @@
           }
         }
         
-        // Draw - helles Blutrot, pulsierend
-        const pulse = 1 + Math.sin(time * 10) * 0.2;
+        // Draw - Meteoroid mit ausfahrendem Schweif
+        const redSpeed = Math.sqrt(redParticle.vx * redParticle.vx + redParticle.vy * redParticle.vy);
+        const dirX = redParticle.vx / (redSpeed + 0.01);
+        const dirY = redParticle.vy / (redSpeed + 0.01);
+        
+        const pulse = 1 + Math.sin(time * 8) * 0.15;
+        const coreSize = 5 * pulse;
+        
+        // Subtiler Glow um den Core
         ctx.beginPath();
-        ctx.arc(redParticle.x, redParticle.y, 5 * pulse, 0, Math.PI * 2);
+        ctx.arc(redParticle.x, redParticle.y, coreSize * 2, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 34, 34, 0.15)';
+        ctx.fill();
+        
+        // Meteoroid Core
+        ctx.beginPath();
+        ctx.arc(redParticle.x, redParticle.y, coreSize, 0, Math.PI * 2);
         ctx.fillStyle = '#ff2222';
         ctx.fill();
         
-        // Trail
-        ctx.beginPath();
-        ctx.moveTo(redParticle.x, redParticle.y);
-        ctx.lineTo(redParticle.x - redParticle.vx * 2, redParticle.y - redParticle.vy * 2);
-        ctx.strokeStyle = 'rgba(255, 34, 34, 0.6)';
-        ctx.lineWidth = 3;
-        ctx.stroke();
+        // Ausfadender Schweif (dünner werdend)
+        const trailLength = Math.min(redSpeed * 10, 50);
+        const trailSteps = 10;
+        
+        for (let t = 1; t <= trailSteps; t++) {
+          const progress = t / trailSteps;
+          const trailAlpha = 0.7 * (1 - progress);  // Von 0.7 zu 0
+          const trailSize = coreSize * (0.8 - progress * 0.7);  // Dünner werdend
+          const trailDist = progress * trailLength;
+          
+          if (trailSize > 0.5 && trailAlpha > 0.02) {
+            ctx.beginPath();
+            ctx.arc(
+              redParticle.x - dirX * trailDist,
+              redParticle.y - dirY * trailDist,
+              Math.max(0.5, trailSize),
+              0, Math.PI * 2
+            );
+            ctx.fillStyle = `rgba(255, 34, 34, ${trailAlpha})`;
+            ctx.fill();
+          }
+        }
       }
       
       // ========================================
@@ -1523,17 +1536,17 @@
           const dx = targetX - x;
           const dy = targetY - y;
           const dist = Math.sqrt(dx*dx + dy*dy);
-          const speed = 2.5 + Math.random() * 1.5;
+          const speed = 1.5 + Math.random() * 1.0;  // Langsamer (1.5-2.5 statt 2.5-4)
           
           coloredParticles.push({
             x, y,
             vx: (dx / dist) * speed,
             vy: (dy / dist) * speed,
             color,
-            size: 2.5,  // Kleiner (2.5 statt 4)
+            size: 3,  // Etwas größer für Sichtbarkeit
             phase: Math.random() * Math.PI * 2,
             turnTimer: 0,
-            alpha: 0.8  // Weniger opaque
+            alpha: 1.0  // Volle Intensität
           });
           
           // Nächster Spawn in 2 Sekunden
@@ -1615,32 +1628,38 @@
             continue;
           }
           
-          // Draw - Asteroid-Style mit dezentem Schweif
+          // Draw - Intensiver Asteroid mit Schweif
           const particleSpeed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
-          
-          // Asteroid Core - leicht unregelmäßige Form simulieren
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, p.size * 0.9, 0, Math.PI * 2);
-          ctx.fillStyle = hexToRgba(p.color, p.alpha * 0.9);
-          ctx.fill();
-          
-          // Dezenter Schweif (Gradient-artig, mehrere Punkte)
-          const trailLength = Math.min(particleSpeed * 4, 25);
-          const trailSteps = 5;
           const dirX = p.vx / (particleSpeed + 0.01);
           const dirY = p.vy / (particleSpeed + 0.01);
           
+          // Subtiler Glow
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size * 2, 0, Math.PI * 2);
+          ctx.fillStyle = hexToRgba(p.color, 0.15);
+          ctx.fill();
+          
+          // Asteroid Core - volle Intensität
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fillStyle = p.color;
+          ctx.fill();
+          
+          // Schweif (ausfadend)
+          const trailLength = Math.min(particleSpeed * 6, 30);
+          const trailSteps = 6;
+          
           for (let t = 1; t <= trailSteps; t++) {
-            const trailAlpha = p.alpha * 0.15 * (1 - t / trailSteps);
-            const trailSize = p.size * (0.6 - t * 0.08);
+            const trailAlpha = 0.5 * (1 - t / trailSteps);
+            const trailSize = p.size * (0.7 - t * 0.1);
             const trailDist = (t / trailSteps) * trailLength;
             
-            if (trailSize > 0 && trailAlpha > 0.01) {
+            if (trailSize > 0) {
               ctx.beginPath();
               ctx.arc(
                 p.x - dirX * trailDist,
                 p.y - dirY * trailDist,
-                Math.max(0.5, trailSize),
+                Math.max(0.3, trailSize),
                 0, Math.PI * 2
               );
               ctx.fillStyle = hexToRgba(p.color, trailAlpha);
@@ -2014,40 +2033,35 @@
           const bridge = floatingBridges[i];
           const isHovered = (i === hoveredBridgeIndex);
           
-          // 3D Orbit simulation
-          if (bridge.orbitAngle !== undefined) {
-            bridge.orbitAngle += bridge.orbitSpeed || 0.01;
-          }
-          
-          // Orbit-Logik: Sanfte Anziehung zum Logo-Zentrum + tangentiale Bewegung
+          // Orbit-Logik: Weiträumig um das Logo kreisen
           const dxLogo = logoX - bridge.x;
           const dyLogo = logoY - bridge.y;
           const distLogo = Math.sqrt(dxLogo * dxLogo + dyLogo * dyLogo);
           
-          // Ziel-Orbit-Radius (loser Orbit, nicht zu nah)
-          const targetOrbitRadius = 150 + (i * 50);
+          // Ziel-Orbit-Radius (weiträumig, verschiedene Distanzen)
+          const targetOrbitRadius = 200 + (i * 60);
           
           // Speed-Multiplikator (langsamer bei Hover)
           const speedMult = isHovered ? 0.15 : 1.0;
           
-          // Orbit-Kraft: Ziehe zur Orbit-Linie
+          // Orbit-Kraft: Sanft zur Orbit-Linie ziehen
           if (distLogo > 10) {
             const orbitError = distLogo - targetOrbitRadius;
-            const pullStrength = orbitError * 0.001 * speedMult;
+            const pullStrength = orbitError * 0.0006 * speedMult;
             bridge.vx += (dxLogo / distLogo) * pullStrength;
             bridge.vy += (dyLogo / distLogo) * pullStrength;
             
-            // Tangentiale Bewegung (im Uhrzeigersinn)
+            // Tangentiale Bewegung (langsam im Uhrzeigersinn)
             const tangentX = -dyLogo / distLogo;
             const tangentY = dxLogo / distLogo;
-            const tangentSpeed = 0.02 * speedMult;
+            const tangentSpeed = 0.012 * speedMult;
             bridge.vx += tangentX * tangentSpeed;
             bridge.vy += tangentY * tangentSpeed;
           }
           
           // Sanfte Phase für leichte Wellen
-          bridge.phase += 0.01 * speedMult;
-          const wave = Math.sin(bridge.phase) * 0.2;
+          bridge.phase += 0.008 * speedMult;
+          const wave = Math.sin(bridge.phase) * 0.15;
           
           // Position Update
           bridge.x += (bridge.vx + wave) * speedMult;
@@ -2059,28 +2073,14 @@
           
           // Sanftes Bouncing von Rändern
           const margin = 80;
-          if (bridge.x < margin) bridge.vx += 0.02;
-          if (bridge.x > W - margin) bridge.vx -= 0.02;
-          if (bridge.y < margin) bridge.vy += 0.02;
-          if (bridge.y > H - margin) bridge.vy -= 0.02;
+          if (bridge.x < margin) bridge.vx += 0.015;
+          if (bridge.x > W - margin) bridge.vx -= 0.015;
+          if (bridge.y < margin) bridge.vy += 0.015;
+          if (bridge.y > H - margin) bridge.vy -= 0.015;
           
           // Atmung/Pulsieren (subtiler)
           const breath = 1 + Math.sin(time * 1.5 + bridge.phase) * 0.08;
           const size = bridge.size * breath;
-          
-          // 3D depth: Calculate if bridge is "behind" the logo
-          const orbitAngle = bridge.orbitAngle || 0;
-          const depth = Math.sin(orbitAngle); // -1 to 1, negative = behind
-          const isBehind = depth < 0;
-          
-          // Skip drawing if behind - will be drawn inverted on logo later
-          bridge.isBehind = isBehind;
-          bridge.currentSize = size;
-          
-          if (isBehind) {
-            // Don't draw here - will be drawn on logo
-            continue;
-          }
           
           // Hover-Effekt: leicht größer
           const hoverScale = isHovered ? 1.15 : 1.0;
