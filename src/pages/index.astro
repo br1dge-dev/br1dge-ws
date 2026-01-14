@@ -756,9 +756,11 @@
         animateModalCursor();
         
         // Close button
-        closeBtn.addEventListener('mouseenter', () => { closeBtn.style.opacity = '1'; });
-        closeBtn.addEventListener('mouseleave', () => { closeBtn.style.opacity = '0.4'; });
-        closeBtn.addEventListener('click', () => closeModal(modal));
+        if (closeBtn) {
+          closeBtn.addEventListener('mouseenter', () => { closeBtn.style.opacity = '1'; });
+          closeBtn.addEventListener('mouseleave', () => { closeBtn.style.opacity = '0.4'; });
+          closeBtn.addEventListener('click', () => closeModal(modal));
+        }
         
         // Hover-Effekte für Links
         modal.querySelectorAll('.modal-link').forEach(link => {
@@ -773,15 +775,17 @@
         });
         
         // Restart button
-        restartBtn.addEventListener('mouseenter', () => {
-          restartBtn.style.borderColor = 'rgba(0,0,0,0.4)';
-          restartBtn.style.color = '#000';
-        });
-        restartBtn.addEventListener('mouseleave', () => {
-          restartBtn.style.borderColor = 'rgba(0,0,0,0.15)';
-          restartBtn.style.color = 'rgba(0,0,0,0.4)';
-        });
-        restartBtn.addEventListener('click', () => restartGame(modal));
+        if (restartBtn) {
+          restartBtn.addEventListener('mouseenter', () => {
+            restartBtn.style.borderColor = 'rgba(0,0,0,0.4)';
+            restartBtn.style.color = '#000';
+          });
+          restartBtn.addEventListener('mouseleave', () => {
+            restartBtn.style.borderColor = 'rgba(0,0,0,0.15)';
+            restartBtn.style.color = 'rgba(0,0,0,0.4)';
+          });
+          restartBtn.addEventListener('click', () => restartGame(modal));
+        }
         
         // Fade in
         requestAnimationFrame(() => {
