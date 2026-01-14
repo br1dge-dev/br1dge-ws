@@ -646,7 +646,7 @@
       }
       
       function showRestartButton() {
-        console.log('showRestartButton called, gameCompleted:', gameCompleted);
+        console.log('showRestartButton called, gameCompleted:', gameCompleted, 'W:', W, 'H:', H, 'logoBaseScale:', logoBaseScale);
         // Entferne vorherigen falls vorhanden
         const existingBtn = document.getElementById('restart-overlay-btn');
         if (existingBtn) existingBtn.remove();
@@ -655,7 +655,9 @@
         btn.id = 'restart-overlay-btn';
         btn.textContent = 'RESTART';
         // Offset basiert auf Logo-Größe bei Level 10
-        const buttonOffset = Math.min(W, H) * 0.18 * logoBaseScale;
+        const logoSize = Math.min(W, H) * 0.18 * logoBaseScale;
+        const buttonOffset = logoSize + 30; // Logo-Größe + etwas Abstand
+        console.log('buttonOffset:', buttonOffset);
         btn.style.cssText = `
           position: fixed;
           left: 50%;
@@ -670,7 +672,7 @@
           transition: all 0.3s;
           letter-spacing: 0.15em;
           font-family: "SF Pro Display", system-ui, sans-serif;
-          z-index: 100;
+          z-index: 9999;
           opacity: 0;
         `;
         
