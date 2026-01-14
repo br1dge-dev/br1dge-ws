@@ -37,9 +37,9 @@
     <meta name="twitter:image:alt" content="br1dge ∩ logo on black background" />
     
     <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; cursor: none; }
-      html, body { height: 100%; width: 100%; overflow: hidden; background: #000; }
-      #canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; }
+      * { margin: 0; padding: 0; box-sizing: border-box; cursor: none !important; }
+      html, body { height: 100%; width: 100%; overflow: hidden; background: #000; cursor: none !important; }
+      #canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; cursor: none !important; }
       #sound-toggle {
         position: fixed;
         bottom: 1.2rem;
@@ -78,7 +78,7 @@
         letter-spacing: 0.25em;
         color: rgba(255, 255, 255, 0.5);
         pointer-events: auto;
-        cursor: pointer;
+        cursor: none !important;
         display: flex;
         align-items: center;
         gap: 0.08em;
@@ -1430,48 +1430,15 @@
           }
         }
         
-        // Draw - Meteoroid mit ausfahrendem Schweif
-        const redSpeed = Math.sqrt(redParticle.vx * redParticle.vx + redParticle.vy * redParticle.vy);
-        const dirX = redParticle.vx / (redSpeed + 0.01);
-        const dirY = redParticle.vy / (redSpeed + 0.01);
+        // Draw - Flat ring, etwas kleiner als default cursor
+        const ringSize = 4;  // Kleiner als cursor base size (5)
         
-        const pulse = 1 + Math.sin(time * 8) * 0.15;
-        const coreSize = 5 * pulse;
-        
-        // Subtiler Glow um den Core
+        // Einfacher Ring (nicht gefüllt)
         ctx.beginPath();
-        ctx.arc(redParticle.x, redParticle.y, coreSize * 2, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255, 34, 34, 0.15)';
-        ctx.fill();
-        
-        // Meteoroid Core
-        ctx.beginPath();
-        ctx.arc(redParticle.x, redParticle.y, coreSize, 0, Math.PI * 2);
-        ctx.fillStyle = '#ff2222';
-        ctx.fill();
-        
-        // Ausfadender Schweif (dünner werdend)
-        const trailLength = Math.min(redSpeed * 10, 50);
-        const trailSteps = 10;
-        
-        for (let t = 1; t <= trailSteps; t++) {
-          const progress = t / trailSteps;
-          const trailAlpha = 0.7 * (1 - progress);  // Von 0.7 zu 0
-          const trailSize = coreSize * (0.8 - progress * 0.7);  // Dünner werdend
-          const trailDist = progress * trailLength;
-          
-          if (trailSize > 0.5 && trailAlpha > 0.02) {
-            ctx.beginPath();
-            ctx.arc(
-              redParticle.x - dirX * trailDist,
-              redParticle.y - dirY * trailDist,
-              Math.max(0.5, trailSize),
-              0, Math.PI * 2
-            );
-            ctx.fillStyle = `rgba(255, 34, 34, ${trailAlpha})`;
-            ctx.fill();
-          }
-        }
+        ctx.arc(redParticle.x, redParticle.y, ringSize, 0, Math.PI * 2);
+        ctx.strokeStyle = '#ff2222';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
       }
       
       // ========================================
@@ -1486,17 +1453,15 @@
           return;
         }
         
-        // Verfügbare Ringe für aktuelle Phase
-        const availableRings = RINGS_PER_PHASE[currentColorPhase];
-        const maxEnergy = availableRings / 5; // 3/5 = 0.6, 4/5 = 0.8, 5/5 = 1.0
+        // Chamber öffnet sich früh - sobald 1 Ring gefüllt ist (20% energy)
+        const chamberOpenThreshold = 0.2; // 1 Ring = 20%
         
-        // Nur spawnen wenn genug geladen (basierend auf verfügbaren Ringen)
-        if (cursorEnergy < maxEnergy) {
+        if (cursorEnergy < chamberOpenThreshold) {
           coloredParticleSpawnTime = Date.now() + 2000;
           return;
         }
         
-        // Aktiviere Kammer
+        // Aktiviere Kammer sobald 1 Ring voll
         if (!chamberActive) {
           chamberActive = true;
           chamberSpawnPhase = 0;
@@ -2022,12 +1987,7 @@
           }
         }
         
-        // Update canvas cursor style based on hover
-        if (hoveredBridgeIndex >= 0) {
-          canvas.style.cursor = 'pointer';
-        } else {
-          canvas.style.cursor = 'none';
-        }
+        // Cursor bleibt immer none (custom cursor gezeichnet)
         
         for (let i = floatingBridges.length - 1; i >= 0; i--) {
           const bridge = floatingBridges[i];
